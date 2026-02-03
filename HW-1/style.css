@@ -1,0 +1,161 @@
+ 
+ 
+ 
+ /* Mobile styles (base) */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* Hero Section - Image with text overlay */
+.hero {
+    background-image: url('imgs/hero-image.jpg');
+    background-size: contain; /* Shows full image without cropping */
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #6495ED; /* Cornflower blue to fill any gaps */
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding: 20px;
+}
+
+.hero-content {
+    background: rgba(25, 25, 112, 0.85); /* Dark blue semi-transparent */
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 600px;
+}
+
+.hero h1 {
+    color: white;
+    font-size: 36px;
+    margin-bottom: 15px;
+}
+
+.hero p {
+    color: white;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Content sections below hero */
+body > h2, 
+body > h3, 
+body > p, 
+body > ul {
+    margin: 20px;
+    padding: 0 20px;
+}
+
+h2 {
+    color: blue;
+    font-size: 28px;
+    margin-top: 40px;
+    margin-bottom: 15px;
+}
+
+h3 {
+    color: blue;
+    font-size: 24px;
+    margin-top: 30px;
+    margin-bottom: 15px;
+}
+
+p {
+    color: blue;
+    margin-bottom: 15px;
+}
+
+ul {
+    color: blue;
+    margin-left: 40px;
+    margin-bottom: 20px;
+}
+
+li {
+    margin-bottom: 10px;
+}
+
+/* Tablet breakpoint */
+@media (min-width: 768px) {
+    body {
+        font-size: 18px;
+    }
+    
+    .hero-content {
+        padding: 40px;
+        margin-left: 40px;
+    }
+    
+    .hero h1 {
+        font-size: 48px;
+    }
+    
+    .hero p {
+        font-size: 22px;
+    }
+    
+    h2 {
+        font-size: 32px;
+    }
+}
+
+/* Desktop breakpoint */
+@media (min-width: 1024px) {
+    body {
+        font-size: 20px;
+    }
+    
+    .hero h1 {
+        font-size: 56px;
+    }
+    
+    .hero p {
+        font-size: 24px;
+    }
+    
+    body > h2, 
+    body > h3, 
+    body > p, 
+    body > ul {
+        margin-left: 80px;
+        margin-right: 80px;
+    }
+
+    /* Section styling for visual breaks */
+section {
+    padding: 60px 20px;
+    min-height: 50vh;
+}
+
+.about-section {
+    background-color: #F5F5DC; /* Beige */
+}
+
+.favorites-section {
+    background-color: #E6E6FA; /* Lavender */
+}
+
+.games-section {
+    background-color: #FFE4B5; /* Moccasin/peachy */
+}
+
+/* Update your h2, h3, p, ul to work within sections */
+section h2, section h3 {
+    margin-bottom: 20px;
+}
+
+section p, section ul {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+}
