@@ -1,0 +1,19 @@
+#ranch-frame, #bottom-frame {
+    padding: 20px;
+    margin: 50px auto;
+    max-width: 600px;
+    background-color: #fdf5e6;
+}
+
+body {
+    background-color: tan;
+    color:#5d4037; /*leather brown */
+    text-align: center;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+#story-text {
+    font-size: 20px;         /* Clear, simple pixel measurement */
+    font-weight: 600;       /* Makes it slightly thicker but not "bulky" */
+    color: #3e2723;         /* Keeping it that nice dark brown */
+}
