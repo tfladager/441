@@ -48,16 +48,16 @@ function handleFirstChoice() {
 }
 
 function handleArenaChoice() {
-    let speed = document.getElementById("arena-direction").value.toLowerCase();
+    let direction = document.getElementById("arena-direction").value.toLowerCase();
 
-    if (speed === "clockwise") {
+    if (direction === "clockwise") {
         document.getElementById("story-text").innerText =
             "You start with a slow warm‑up. Big circles, loose reins, letting your horse stretch out.";
-    } else if (speed === "counter-clockwise") {
+    } else if (direction === "counter-clockwise") {
         document.getElementById("story-text").innerText =
             "Alternating the pattern keeps constant one-sided pressure from causing joint injuries in all athletes, including horses.";
     } else {
         document.getElementById("story-text").innerText =
-            "That’s not a speed we use in the arena. Try slow or fast.";
+            "That’s not a direction we can go in the arena. Try clockwise or counter-clockwise.";
     }
 }
