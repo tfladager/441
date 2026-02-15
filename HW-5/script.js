@@ -17,9 +17,12 @@ function greetRider() {
 function pickHorse(horseName) {
     // This is your 3rd story progression!
     document.getElementById("story-text").innerText = "Great choice! Let's get the saddle for " + horseName + ".";
-    document.getElementById("first-choice").style.display = "block";
+    
     // Hide the selection area to finish the scene
     document.getElementById("horse-stories").style.display = "none";
+
+    //show the choice
+    document.getElementById("first-choice").style.display = "block";
 }
 
 function handleFirstChoice() {
