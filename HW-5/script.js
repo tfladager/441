@@ -31,9 +31,11 @@ function handleFirstChoice() {
     if (choice === "arena") {
         document.getElementById("story-text").innerText =
             "You head to the arena. Before the horses can start running the barrels, they have to be warmed up with loops around the arena and varying speeds. We will start at a walk, then move to a lope.";
+        document.getElementById("arena-choice").style.display = "block";    
     } else if (choice === "pasture") {
         document.getElementById("story-text").innerText =
             "You ride out to the pasture. Our ride starts by checking the fence and water tanks. We will enjoy the day as we go.";
+            document.getElementById("arena-choice").style.display = "block";
     } else if (choice === "mountains") {
         document.getElementById("story-text").innerText =
             "You climb toward the mountains. The air gets cooler and the view opens up. The horses are athletic and sure footed but always keep an eye out for holes that they could step into. That wouldn't be good!";
@@ -42,4 +44,19 @@ function handleFirstChoice() {
             "That’s not a place you can ride. Try arena, pasture, or mountains.";
     }
 
+}
+
+function handleArenaChoice() {
+    let speed = document.getElementById("arena-direction").value.toLowerCase();
+
+    if (speed === "clockwise") {
+        document.getElementById("story-text").innerText =
+            "You start with a slow warm‑up. Big circles, loose reins, letting your horse stretch out.";
+    } else if (speed === "counter-clockwise") {
+        document.getElementById("story-text").innerText =
+            "Alternating the pattern keeps constant one-sided pressure from causing joint injuries in all athletes, including horses.";
+    } else {
+        document.getElementById("story-text").innerText =
+            "That’s not a speed we use in the arena. Try slow or fast.";
+    }
 }
