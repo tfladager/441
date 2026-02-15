@@ -12,56 +12,59 @@
     <h1 id="title">EVERYBODY WANTS TO BE A COWBOY</h1>
     <h2 id="subtitle">Until you have to do cowboy stuff.</h2>
 
+    <!-- Permanent message -->
     <div id="top-message">Time to ride!</div>
-        <div id="bottom-frame"></div>
 
-         
-        <div class="horse-corral"> 
-            <figure> 
-                <img src="grandpa.jpg" alt="Grandpa" class="horse-pic">
-                <figcaption>Grandpa</figcaption>
-            </figure>
-            <figure>
-                <img src="dad.jpg" alt="Dad" class="horse-pic">
-                <figcaption>Dad</figcaption>
-            </figure>
-            <figure>
-                <img src="snort.jpg" alt="Snort" class="horse-pic">
-                <figcaption>Snort</figcaption>
-            </figure> 
-        </div> <div id="rider-selection">
-            <p>Hi! What's your name?</p>
-            <input type="text" id="rider-name" placeholder="Enter name here...">
-            <button id="submit-name" onclick="greetRider()">Ready to Ride</button>
-        </div> 
- <div id="story-container"> 
-      <div id="horse-stories" class="hidden">
-    <h3>The Ranch Lineup</h3>
-    <p>Welcome to the ranch. I'm glad you are here today. We are going to have fun! The next thing we have to do is let you pick a horse and then saddle them up. Let me tell you about our horses!</p>
-    <p><strong>Grandpa:</strong> The wisest soul on the ranch. He's patient and kind. I started riding with him when I was just a kid.</p>
-    <p><strong>Dad:</strong> Strong and reliable. He's got a big engine and can work all day without breaking a sweat but he can be a kid at times too!</p>
-    <p><strong>Snort:</strong> She's a firecracker! She's fast and can jump at her shadow at times. If you aren't a regular rider, you may want to let someone else saddle her up.</p>
-
-    <p>Just click a button and we will help you saddle up:</p> 
-    <div class="selection-buttons">
-        <button onclick="pickHorse('Grandpa')">Grandpa</button>
-        <button onclick="pickHorse('Dad')">Dad</button>
-        <button onclick="pickHorse('Snort')">Snort</button>
+    <!-- Horse pictures -->
+    <div class="horse-corral"> 
+        <figure> 
+            <img src="grandpa.jpg" alt="Grandpa" class="horse-pic">
+            <figcaption>Grandpa</figcaption>
+        </figure>
+        <figure>
+            <img src="dad.jpg" alt="Dad" class="horse-pic">
+            <figcaption>Dad</figcaption>
+        </figure>
+        <figure>
+            <img src="snort.jpg" alt="Snort" class="horse-pic">
+            <figcaption>Snort</figcaption>
+        </figure> 
     </div>
 
-    <div id="first-choice" class="hidden">
-    <p>Where do you want to ride today? Type arena, pasture, or mountains.</p>
-    <input id="ride-choice" type="text">
-    <button onclick="handleFirstChoice()">Submit</button>
-    document.getElementById("first-choice").style.display = "block";
+    <!-- Name input -->
+    <div id="rider-selection">
+        <p>Hi! What's your name?</p>
+        <input type="text" id="rider-name" placeholder="Enter name here...">
+        <button id="submit-name" onclick="greetRider()">Ready to Ride</button>
+    </div>
 
-</div>
+    <!-- This is where ALL story text will appear -->
+    <div id="story-text"></div>
 
-</div>   
+    <!-- Horse stories and choices -->
+    <div id="horse-stories" class="hidden">
+        <h3>The Ranch Lineup</h3>
+        <p>Welcome to the ranch. I'm glad you are here today...</p>
 
-<script src="script.js"></script>    
-    
-    
+        <p><strong>Grandpa:</strong> The wisest soul on the ranch...</p>
+        <p><strong>Dad:</strong> Strong and reliable...</p>
+        <p><strong>Snort:</strong> She's a firecracker...</p>
 
+        <p>Just click a button and we will help you saddle up:</p> 
+        <div class="selection-buttons">
+            <button onclick="pickHorse('Grandpa')">Grandpa</button>
+            <button onclick="pickHorse('Dad')">Dad</button>
+            <button onclick="pickHorse('Snort')">Snort</button>
+        </div>
+
+        <!-- First typed choice -->
+        <div id="first-choice" class="hidden">
+            <p>Where do you want to ride today? Type arena, pasture, or mountains.</p>
+            <input id="ride-choice" type="text">
+            <button onclick="handleFirstChoice()">Submit</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>    
 </body>
 </html>
