@@ -52,16 +52,31 @@ function handleArenaChoice() {
     let direction = document.getElementById("arena-direction").value.toLowerCase();
 
     if (direction === "clockwise") {
+        let laps = "";
+        for (let i = 1; i <= 3; i++) {
+            laps += "Lap " + i + " completed. ";
+        }
+
         document.getElementById("story-text").innerText =
-            "You start with a slow warm‑up. Big circles, loose reins, letting your horse stretch out.";
+            "You start warming up clockwise. Big circles, loose reins, letting your horse stretch out. " +
+            laps;
+
     } else if (direction === "counter-clockwise") {
+        let laps = "";
+        for (let i = 1; i <= 3; i++) {
+            laps += "Lap " + i + " completed. ";
+        }
+
         document.getElementById("story-text").innerText =
-            "Alternating the pattern keeps constant one-sided pressure from causing joint injuries in all athletes, including horses.";
+            "You warm up counter‑clockwise, keeping your horse balanced and limber. " +
+            laps;
+
     } else {
         document.getElementById("story-text").innerText =
             "That’s not a direction we can go in the arena. Try clockwise or counter-clockwise.";
     }
 }
+
 
 
 function handlePastureChoice() {
