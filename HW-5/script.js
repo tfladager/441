@@ -58,6 +58,8 @@ function handleArenaChoice() {
             laps += "Lap " + i + " completed. ";
         }
 
+        let mood = getHorseMood(direction);
+
         document.getElementById("story-text").innerText =
             "You start warming up clockwise. Big circles, loose reins, letting your horse stretch out. " +
             laps;
@@ -69,6 +71,8 @@ function handleArenaChoice() {
             laps += "Lap " + i + " completed. ";
             console.log("Lap" +i);
         }
+
+        let mood = getHorseMood(direction);
 
         document.getElementById("story-text").innerText =
             "You warm up counter‑clockwise, keeping your horse balanced and limber. " +
@@ -111,5 +115,13 @@ function handleMountainsChoice() {
     } else {
         document.getElementById("story-text").innerText =
             "That’s not a choice up here. Try trail or explore.";
+    }
+}
+
+function getHorseMood(direction) {
+    if (direction === "clockwise") {
+        return "relaxed";
+    } else {
+        return "spunky";
     }
 }
