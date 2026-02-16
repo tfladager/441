@@ -63,7 +63,9 @@ function handleArenaChoice() {
         document.getElementById("story-text").innerText +=
             "You start warming up clockwise. Big circles, loose reins, letting your horse stretch out. " +
             laps +
-            " \nYour horse seems " + mood + " today.";
+            " \n Your horse seems " + mood + " today.";
+        document.getElementById("restart").style.display = "block";
+    
 
     } else if (direction === "counter-clockwise") {
 
@@ -78,7 +80,9 @@ function handleArenaChoice() {
         document.getElementById("story-text").innerText =
             "You warm up counter‑clockwise, keeping your horse balanced and limber. " +
             laps +
-            " \nYour horse seems " + mood + " today.";
+            " \n Your horse seems " + mood + " today.";
+        document.getElementById("restart").style.display = "block";
+    
 
     } else {
         document.getElementById("story-text").innerText =
@@ -92,10 +96,14 @@ function handlePastureChoice() {
     if (action === "fences") {
         document.getElementById("story-text").innerText =
             "You ride the fence line, checking for breaks or loose wire. Everything looks secure today.";
+        document.getElementById("restart").style.display = "block";
+
 
     } else if (action === "strays") {
         document.getElementById("story-text").innerText =
             "You scan the pasture for strays. A few calves are wandering, but they stay close to the herd.";
+        document.getElementById("restart").style.display = "block";
+
 
     } else {
         document.getElementById("story-text").innerText =
@@ -109,10 +117,14 @@ function handleMountainsChoice() {
     if (path === "trail") {
         document.getElementById("story-text").innerText =
             "You follow the trail along the ridge. The view stretches for miles, and your horse steps carefully along the narrow path.";
+        document.getElementById("restart").style.display = "block";
+
 
     } else if (path === "explore") {
         document.getElementById("story-text").innerText =
             "You turn off the trail and explore the open timber. Birds scatter as you ride through the trees, and the air smells like pine.";
+        document.getElementById("restart").style.display = "block";
+
 
     } else {
         document.getElementById("story-text").innerText =
@@ -126,4 +138,8 @@ function getHorseMood(direction) {
     } else {
         return "spunky";
     }
+}
+
+function restartStory() {
+    location.reload();
 }
