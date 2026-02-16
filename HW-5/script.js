@@ -52,6 +52,7 @@ function handleArenaChoice() {
     let direction = document.getElementById("arena-direction").value.toLowerCase();
 
     if (direction === "clockwise") {
+
         let laps = "";
         for (let i = 1; i <= 3; i++) {
             laps += "Lap " + i + " completed. ";
@@ -62,6 +63,7 @@ function handleArenaChoice() {
             laps;
 
     } else if (direction === "counter-clockwise") {
+
         let laps = "";
         for (let i = 1; i <= 3; i++) {
             laps += "Lap " + i + " completed. ";
@@ -76,6 +78,7 @@ function handleArenaChoice() {
             "That’s not a direction we can go in the arena. Try clockwise or counter-clockwise.";
     }
 }
+
 
 
 
