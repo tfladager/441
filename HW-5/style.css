@@ -131,3 +131,8 @@ figcaption {
     background-color: #883f03; /* Slightly darker on hover */
 }
 
+body {
+    background: linear-gradient(#bcdcff, #e6f3ff);
+    background-attachment: fixed;
+}
+

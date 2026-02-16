@@ -144,7 +144,4 @@ function restartStory() {
     location.reload();
 }
 
-body {
-    background: linear-gradient(#bcdcff, #e6f3ff);
-    background-attachment: fixed;
-}
+
