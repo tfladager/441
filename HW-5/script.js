@@ -31,8 +31,9 @@ function handleFirstChoice() {
     if (choice === "arena") {
         document.getElementById("story-text").innerText =
             "You head to the arena. Before the horses can start running the barrels, they have to be warmed up with loops around the arena and varying speeds. We will start at a walk, then move to a lope.";
-        document.getElementById("arena-choice").style.display = "none";
-        document.getElementById("arena-choice").style.display = "none";    
+        document.getElementById("first-choice").style.display = "none";
+        document.getElementById("arena-choice").style.display = "block";
+   
     } else if (choice === "pasture") {
         document.getElementById("story-text").innerText =
             "You ride out to the pasture. Our ride starts by checking the fence and water tanks. We will enjoy the day as we go.";
