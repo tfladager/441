@@ -36,14 +36,16 @@ function handleFirstChoice() {
     } else if (choice === "pasture") {
         document.getElementById("story-text").innerText =
             "You ride out to the pasture. Our ride starts by checking the fence and water tanks. We will enjoy the day as we go.";
+        document.getElementById("first-choice").style.display = "none";
+        document.getElementById("pasture-choice").style.display = "block";
 
     } else if (choice === "mountains") {
-        document.getElementById("story-text").innerText =
-            "You climb toward the mountains. The air gets cooler and the view opens up. The horses are athletic and sure footed but always keep an eye out for holes that they could step into. That wouldn't be good!";
-    } else {
-        document.getElementById("story-text").innerText =
-            "That’s not a place you can ride. Try arena, pasture, or mountains.";
-    }
+    document.getElementById("story-text").innerText =
+        "You climb toward the mountains. The air gets cooler and the view opens up. The horses are athletic and sure footed but always keep an eye out for holes that they could step into. That wouldn't be good!";
+
+    document.getElementById("first-choice").style.display = "none";
+    document.getElementById("mountains-choice").style.display = "block";
+}
 
 }
 
@@ -59,5 +61,36 @@ function handleArenaChoice() {
     } else {
         document.getElementById("story-text").innerText =
             "That’s not a direction we can go in the arena. Try clockwise or counter-clockwise.";
+    }
+}
+
+
+function handlePastureChoice() {
+    let action = document.getElementById("pasture-action").value.toLowerCase();
+
+    if (action === "fences") {
+        document.getElementById("story-text").innerText =
+            "You ride the fence line, checking for breaks or loose wire. Everything looks secure today.";
+    } else if (action === "strays") {
+        document.getElementById("story-text").innerText =
+            "You scan the pasture for strays. A few calves are wandering, but they stay close to the herd.";
+    } else {
+        document.getElementById("story-text").innerText =
+            "That’s not something we do in the pasture. Try fences or strays.";
+    }
+}
+
+function handleMountainsChoice() {
+    let path = document.getElementById("mountains-path").value.toLowerCase();
+
+    if (path === "trail") {
+        document.getElementById("story-text").innerText =
+            "You follow the trail along the ridge. The view stretches for miles, and your horse steps carefully along the narrow path.";
+    } else if (path === "explore") {
+        document.getElementById("story-text").innerText =
+            "You turn off the trail and explore the open timber. Birds scatter as you ride through the trees, and the air smells like pine.";
+    } else {
+        document.getElementById("story-text").innerText =
+            "That’s not a choice up here. Try trail or explore.";
     }
 }
