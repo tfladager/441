@@ -103,10 +103,13 @@ figcaption {
     transform: scale(1.05);  
 }
 
-function pickHorse(horseName) {
-    // horseName becomes "Snort" or "Grandpa" depending on the button!
-    document.getElementById("story-text").innerText = "Great choice! Let's get the saddle for " + horseName + ".";
-    
-    // We can also hide the stories now so we can focus on the ride!
-    document.getElementById("horse-stories").style.display = "none";
+
+#story-text {
+    padding: 15px;
+    margin: 20px auto;
+    width: 80%;
+    background-color: #fff8e6;
+    border: 2px solid #d4a373;
+    border-radius: 8px;
+    font-size: 1.2rem;
 }
