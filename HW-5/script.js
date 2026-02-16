@@ -62,21 +62,23 @@ function handleArenaChoice() {
 
         document.getElementById("story-text").innerText =
             "You start warming up clockwise. Big circles, loose reins, letting your horse stretch out. " +
-            laps;
+            laps +
+            " Your horse seems " + mood + " today.";
 
     } else if (direction === "counter-clockwise") {
 
         let laps = "";
         for (let i = 1; i <= 3; i++) {
             laps += "Lap " + i + " completed. ";
-            console.log("Lap" +i);
+            console.log("Lap " + i);
         }
 
         let mood = getHorseMood(direction);
 
         document.getElementById("story-text").innerText =
             "You warm up counter‑clockwise, keeping your horse balanced and limber. " +
-            laps;
+            laps +
+            " Your horse seems " + mood + " today.";
 
     } else {
         document.getElementById("story-text").innerText =
