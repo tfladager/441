@@ -60,7 +60,7 @@ function handleArenaChoice() {
 
         let mood = getHorseMood(direction);
 
-        document.getElementById("story-text").innerText =
+        document.getElementById("story-text").innerText +=
             "You start warming up clockwise. Big circles, loose reins, letting your horse stretch out. " +
             laps +
             " Your horse seems " + mood + " today.";
