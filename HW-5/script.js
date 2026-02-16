@@ -48,8 +48,6 @@ function handleFirstChoice() {
     document.getElementById("mountains-choice").style.display = "block";
 }
 
-}
-
 function handleArenaChoice() {
     let direction = document.getElementById("arena-direction").value.toLowerCase();
 
