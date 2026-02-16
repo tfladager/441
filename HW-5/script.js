@@ -33,7 +33,7 @@ function handleFirstChoice() {
             "You head to the arena. Before the horses can start running the barrels, they have to be warmed up with loops around the arena and varying speeds. We will start at a walk, then move to a lope.";
         document.getElementById("first-choice").style.display = "none";
         document.getElementById("arena-choice").style.display = "block";
-   
+
     } else if (choice === "pasture") {
         document.getElementById("story-text").innerText =
             "You ride out to the pasture. Our ride starts by checking the fence and water tanks. We will enjoy the day as we go.";
@@ -41,13 +41,17 @@ function handleFirstChoice() {
         document.getElementById("pasture-choice").style.display = "block";
 
     } else if (choice === "mountains") {
-    document.getElementById("story-text").innerText =
-        "You climb toward the mountains. The air gets cooler and the view opens up. The horses are athletic and sure footed but always keep an eye out for holes that they could step into. That wouldn't be good!";
+        document.getElementById("story-text").innerText =
+            "You climb toward the mountains. The air gets cooler and the view opens up. The horses are athletic and sure footed but always keep an eye out for holes that they could step into. That wouldn't be good!";
+        document.getElementById("first-choice").style.display = "none";
+        document.getElementById("mountains-choice").style.display = "block";
 
-    document.getElementById("first-choice").style.display = "none";
-    document.getElementById("mountains-choice").style.display = "block";
+    } else {
+        document.getElementById("story-text").innerText =
+            "That’s not a place you can ride. Try arena, pasture, or mountains.";
     }
 }
+
 
 
 function handleArenaChoice() {
