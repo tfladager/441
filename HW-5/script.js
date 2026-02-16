@@ -67,6 +67,7 @@ function handleArenaChoice() {
         let laps = "";
         for (let i = 1; i <= 3; i++) {
             laps += "Lap " + i + " completed. ";
+            console.log("Lap" +i);
         }
 
         document.getElementById("story-text").innerText =
