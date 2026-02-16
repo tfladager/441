@@ -113,3 +113,21 @@ figcaption {
     border-radius: 8px;
     font-size: 1.2rem;
 }
+
+
+#restart {
+    display: block;          /* Makes it take its own line */
+    margin: 20px auto;       /* Centers it horizontally */
+    padding: 12px 24px;      /* Makes it bigger */
+    font-size: 1.2rem;       /* Larger text */
+    background-color: yellow; /* contrast with blue */
+    color: darkblue;            /* Text color */
+    border: none;            /* Clean look */
+    border-radius: 8px;      /* Rounded corners */
+    cursor: pointer;         /* Pointer on hover */
+}
+
+#restart:hover {
+    background-color: #883f03; /* Slightly darker on hover */
+}
+
