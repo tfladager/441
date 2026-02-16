@@ -63,7 +63,7 @@ function handleArenaChoice() {
         document.getElementById("story-text").innerText +=
             "You start warming up clockwise. Big circles, loose reins, letting your horse stretch out. " +
             laps +
-            " Your horse seems " + mood + " today.";
+            " \nYour horse seems " + mood + " today.";
 
     } else if (direction === "counter-clockwise") {
 
@@ -78,7 +78,7 @@ function handleArenaChoice() {
         document.getElementById("story-text").innerText =
             "You warm up counter‑clockwise, keeping your horse balanced and limber. " +
             laps +
-            " Your horse seems " + mood + " today.";
+            " \nYour horse seems " + mood + " today.";
 
     } else {
         document.getElementById("story-text").innerText =
