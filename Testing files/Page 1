@@ -1,0 +1,12 @@
+<html>
+
+<input type="text" id="items" placeholder="apple,orange,grape">
+<button onclick="sendData()">Submit</button>
+
+<script>
+function sendData() {
+  var items = document.getElementById("items").value;
+  window.location = "page2.html?list=" + items;
+}
+</script>
+</html>
