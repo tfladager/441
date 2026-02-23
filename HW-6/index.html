@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Ranch Memory Game</title>
+    <style>
+        body {
+            font-family: cursive;
+            font-size: x-large;
+            text-align: center;
+            background-color: #7ca4ee;
+        }
+        h1 {
+            color: #0c0501;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(4, 150px);
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        img {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 3px solid #160901;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>RANCH MEMORY GAME</h1>
+    <div id="board"></div>
+
+    <script>
+        // Your brand image (face-down tile)
+        var blankImage = "brand.jpg";  
+
+        // 6 unique ranch images, each used twice = 12 tiles
+        var actualImages = [
+            "Cowboy.jpg", "Cowgirl.jpg", "Crew.jpg",
+            "Horses.jpg", "MamaCow.jpg", "Supervisor.jpg",
+            "Cowboy.jpg", "Cowgirl.jpg", "Crew.jpg",
+            "Horses.jpg", "MamaCow.jpg", "Supervisor.jpg"
+        ];
+
+        // Shuffle the array using Math.random()
+        for (var i = actualImages.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var temp = actualImages[i];
+            actualImages[i] = actualImages[j];
+            actualImages[j] = temp;
+        }
+
+        // Build the board
+        var board = document.getElementById("board");
+
+        for (var i = 0; i < 12; i++) {
+            var img = document.createElement("img");
+            img.src = blankImage;
+            img.dataset.actual = actualImages[i];
+            img.onclick = function() {
+                this.src = this.dataset.actual;
+            };
+            board.appendChild(img);
+        }
+    </script>
+
+</body>
+</html>
