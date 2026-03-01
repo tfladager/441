@@ -4,14 +4,14 @@
     <title>Ranch Memory Game</title>
     <style>
         body {
-            font-family: cursive;
-            font-size: x-large;
+            font-family: Arial, sans-serif;
             text-align: center;
-            background-color: #7ca4ee;
+            background-color: #f5e6c8;
         }
-        h1 {
-            color: #0c0501;
-        }
+        h1 { color: #5c3317; }
+        #info { font-size: 18px; color: #5c3317; margin-bottom: 10px; }
+        #attempts { font-size: 18px; color: #5c3317; margin-bottom: 20px; }
+
         #board {
             display: grid;
             grid-template-columns: repeat(4, 150px);
@@ -19,26 +19,69 @@
             justify-content: center;
             margin-top: 20px;
         }
-        img {
+
+        .card {
             width: 150px;
             height: 150px;
-            object-fit: cover;
+            perspective: 600px;
             cursor: pointer;
-            border: 3px solid #160901;
+        }
+
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border: 3px solid #5c3317;
             border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .card-front img, .card-back img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-back {
+            transform: rotateY(180deg);
+        }
+
+        .card.matched {
+            cursor: default;
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
 
-    <h1>RANCH MEMORY GAME</h1>
+    <h1>🤠 Ranch Memory Game</h1>
+    <div id="info"></div>
+    <div id="attempts">Attempts: 0</div>
     <div id="board"></div>
 
     <script>
-        // Your brand image (face-down tile)
-        var blankImage = "brand.jpg";  
+        // Load player from localStorage
+        var playerData = JSON.parse(localStorage.getItem("player"));
+        if (playerData) {
+            document.getElementById("info").innerHTML = 
+                "Howdy, " + playerData.firstName + "! Good luck!";
+        }
 
-        // 6 unique ranch images, each used twice = 12 tiles
+        var blankImage = "brand.jpg";
+
         var actualImages = [
             "Cowboy.jpg", "Cowgirl.jpg", "Crew.jpg",
             "Horses.jpg", "MamaCow.jpg", "Supervisor.jpg",
@@ -46,7 +89,7 @@
             "Horses.jpg", "MamaCow.jpg", "Supervisor.jpg"
         ];
 
-        // Shuffle the array using Math.random()
+        // Shuffle
         for (var i = actualImages.length - 1; i > 0; i--) {
             var j = Math.floor(Math.random() * (i + 1));
             var temp = actualImages[i];
@@ -54,17 +97,79 @@
             actualImages[j] = temp;
         }
 
-        // Build the board
         var board = document.getElementById("board");
+        var flippedCards = [];
+        var matchedPairs = 0;
+        var attempts = 0;
+        var lockBoard = false;
 
         for (var i = 0; i < 12; i++) {
-            var img = document.createElement("img");
-            img.src = blankImage;
-            img.dataset.actual = actualImages[i];
-            img.onclick = function() {
-                this.src = this.dataset.actual;
-            };
-            board.appendChild(img);
+            var card = document.createElement("div");
+            card.classList.add("card");
+            card.dataset.image = actualImages[i];
+
+            card.innerHTML = `
+                <div class="card-inner">
+                    <div class="card-front">
+                        <img src="${blankImage}">
+                    </div>
+                    <div class="card-back">
+                        <img src="${actualImages[i]}">
+                    </div>
+                </div>
+            `;
+
+            card.onclick = flipCard;
+            board.appendChild(card);
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this.classList.contains("flipped")) return;
+            if (this.classList.contains("matched")) return;
+
+            this.classList.add("flipped");
+            flippedCards.push(this);
+
+            if (flippedCards.length === 2) {
+                attempts++;
+                document.getElementById("attempts").innerHTML = "Attempts: " + attempts;
+                lockBoard = true;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            var card1 = flippedCards[0];
+            var card2 = flippedCards[1];
+
+            if (card1.dataset.image === card2.dataset.image) {
+                // Match!
+                card1.classList.add("matched");
+                card2.classList.add("matched");
+                matchedPairs++;
+                flippedCards = [];
+                lockBoard = false;
+
+                if (matchedPairs === 6) {
+                    // Game over!
+                    if (playerData) {
+                        playerData.attempts = attempts;
+                        localStorage.setItem("player", JSON.stringify(playerData));
+                    }
+                    setTimeout(function() {
+                        window.location = "results.html";
+                    }, 1000);
+                }
+            } else {
+                // No match - flip back
+                setTimeout(function() {
+                    card1.classList.remove("flipped");
+                    card2.classList.remove("flipped");
+                    flippedCards = [];
+                    lockBoard = false;
+                }, 1000);
+            }
         }
     </script>
 

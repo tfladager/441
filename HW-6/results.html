@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Ranch Memory Game - Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f5e6c8;
+        }
+        h1 { color: #5c3317; }
+        .results-container {
+            display: inline-block;
+            background-color: #fff8ee;
+            border: 3px solid #5c3317;
+            border-radius: 12px;
+            padding: 30px 50px;
+            margin-top: 40px;
+        }
+        .results-container p {
+            font-size: 20px;
+            color: #5c3317;
+            margin: 10px 0;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 30px;
+            background-color: #5c3317;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #7a4a2a;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🤠 Ranch Memory Game</h1>
+    <div class="results-container">
+        <h2>Game Over, Partner!</h2>
+        <div id="results"></div>
+        <button onclick="playAgain()">Play Again</button>
+        <button onclick="resetGame()">Reset</button>
+    </div>
+
+    <script>
+        var playerData = JSON.parse(localStorage.getItem("player"));
+
+        if (playerData) {
+            document.getElementById("results").innerHTML = `
+                <p>🤠 Player: ${playerData.firstName} ${playerData.lastName}</p>
+                <p>🎂 Age: ${playerData.age}</p>
+                <p>🎯 Total Attempts: ${playerData.attempts}</p>
+            `;
+        } else {
+            document.getElementById("results").innerHTML = 
+                "<p>No player data found. Did you start from the intro page?</p>";
+        }
+
+        function playAgain() {
+            window.location = "index.html";
+        }
+
+        function resetGame() {
+            localStorage.clear();
+            window.location = "intro.html";
+        }
+    </script>
+
+</body>
+</html>

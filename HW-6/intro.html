@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Ranch Memory Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f5e6c8;
+        }
+        h1 {
+            color: #5c3317;
+        }
+        .form-container {
+            display: inline-block;
+            background-color: #fff8ee;
+            border: 3px solid #5c3317;
+            border-radius: 12px;
+            padding: 30px 50px;
+            margin-top: 40px;
+        }
+        input {
+            display: block;
+            margin: 10px auto;
+            padding: 8px;
+            width: 250px;
+            font-size: 16px;
+            border: 2px solid #5c3317;
+            border-radius: 6px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background-color: #5c3317;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #7a4a2a;
+        }
+        .error {
+            color: red;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🤠 Ranch Memory Game</h1>
+    <div class="form-container">
+        <h2>Player Info</h2>
+        <input type="text" id="firstName" placeholder="First Name">
+        <input type="text" id="lastName" placeholder="Last Name">
+        <input type="text" id="age" placeholder="Age">
+        <p class="error" id="errorMsg"></p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <script>
+        function startGame() {
+            var firstName = document.getElementById("firstName").value.trim();
+            var lastName = document.getElementById("lastName").value.trim();
+            var age = document.getElementById("age").value.trim();
+            var errorMsg = document.getElementById("errorMsg");
+
+            // Validation
+            if (firstName === "" || lastName === "" || age === "") {
+                errorMsg.innerHTML = "Please fill in all fields!";
+                return;
+            }
+            if (isNaN(age) || age <= 0) {
+                errorMsg.innerHTML = "Please enter a valid age!";
+                return;
+            }
+
+            // Create player JSON object
+            var player = {
+                firstName: firstName,
+                lastName: lastName,
+                age: parseInt(age),
+                attempts: 0
+            };
+
+            // Save to localStorage
+            localStorage.setItem("player", JSON.stringify(player));
+
+            // Go to game
+            window.location = "index.html";
+        }
+    </script>
+
+</body>
+</html>

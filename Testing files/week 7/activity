@@ -1,0 +1,21 @@
+<script>
+function setInformation() {
+    var images = [];
+    images.push("cat");
+    images.push("dog");
+    images.push("fox");
+
+    var gameData = {
+        playerName: "Player 1",
+        images: images
+    };
+
+    document.getElementById("output").innerHTML =
+        "Player: " + gameData.playerName + "<br>" +
+        "Images: " + gameData.images.toString();
+}
+</script>
+
+<body onload="setInformation();">
+    <div id="output"></div>
+</body>
