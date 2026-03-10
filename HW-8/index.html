@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ViewMaster — Social Justice Around the World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --red: #c0392b;
+      --dark-red: #7b1a10;
+      --cream: #f5f0e8;
+      --tan: #d4c5a9;
+      --dark: #1a1208;
+      --gold: #c9a84c;
+      --lens: #2c3e50;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: #1a1208;
+      background-image:
+        radial-gradient(ellipse at 20% 50%, #2a1a0a 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 50%, #0a0a1a 0%, transparent 60%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier Prime', monospace;
+      padding: 2rem 1rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* Film grain overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+      pointer-events: none;
+      opacity: 0.4;
+      z-index: 100;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      animation: fadeDown 0.8s ease both;
+    }
+
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      color: var(--gold);
+      letter-spacing: 0.06em;
+      text-shadow: 0 2px 20px rgba(201,168,76,0.4);
+    }
+
+    header p {
+      color: var(--tan);
+      font-size: 0.8rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-top: 0.4rem;
+      opacity: 0.7;
+    }
+
+    /* === VIEWMASTER DEVICE === */
+    .viewer-device {
+      position: relative;
+      width: min(520px, 95vw);
+      animation: fadeUp 0.9s ease both 0.2s;
+    }
+
+    .device-body {
+      background: var(--red);
+      background-image:
+        linear-gradient(135deg, #d44a3a 0%, #c0392b 40%, #9b2a1f 100%);
+      border-radius: 50% 50% 42% 42% / 30% 30% 20% 20%;
+      padding: 2.5rem 2rem 3.5rem;
+      box-shadow:
+        0 8px 0 var(--dark-red),
+        0 12px 30px rgba(0,0,0,0.7),
+        inset 0 2px 8px rgba(255,255,255,0.15),
+        inset 0 -4px 12px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    /* Side bumps */
+    .device-body::before,
+    .device-body::after {
+      content: '';
+      position: absolute;
+      top: 35%;
+      width: 28px;
+      height: 55px;
+      background: linear-gradient(135deg, #d44a3a, #9b2a1f);
+      border-radius: 50%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    }
+    .device-body::before { left: -12px; }
+    .device-body::after  { right: -12px; }
+
+    /* Lens circle */
+    .lens-frame {
+      width: 100%;
+      aspect-ratio: 4/3;
+      border-radius: 8px;
+      background: #111;
+      border: 6px solid #8B1010;
+      box-shadow:
+        inset 0 0 30px rgba(0,0,0,0.9),
+        0 0 0 3px rgba(255,255,255,0.06),
+        0 4px 15px rgba(0,0,0,0.6);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Vignette */
+    .lens-frame::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    #slide-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    #slide-image.fade-out {
+      opacity: 0;
+      transform: scale(1.04);
+    }
+
+    /* Bottom label strip on device */
+    .device-label {
+      text-align: center;
+      margin-top: 1rem;
+      color: var(--cream);
+      font-size: 0.65rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      opacity: 0.6;
+    }
+
+    /* === SLIDE INFO CARD === */
+    .slide-card {
+      background: var(--cream);
+      border-radius: 4px;
+      padding: 1.6rem 1.8rem;
+      margin-top: 1.2rem;
+      box-shadow:
+        0 6px 24px rgba(0,0,0,0.5),
+        0 1px 0 var(--gold);
+      border-top: 3px solid var(--gold);
+      position: relative;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .slide-card.fade-out {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    .slide-number {
+      position: absolute;
+      top: -1px;
+      right: 1.5rem;
+      background: var(--gold);
+      color: var(--dark);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      padding: 2px 8px;
+      text-transform: uppercase;
+    }
+
+    #slide-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.25rem;
+      color: var(--dark);
+      line-height: 1.3;
+      margin-bottom: 0.7rem;
+    }
+
+    #slide-description {
+      font-size: 0.85rem;
+      color: #3a2e1e;
+      line-height: 1.7;
+      border-left: 3px solid var(--red);
+      padding-left: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .slide-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      border-top: 1px solid var(--tan);
+      padding-top: 0.7rem;
+    }
+
+    #slide-author {
+      font-size: 0.75rem;
+      color: #5a4a30;
+      font-style: italic;
+    }
+
+    #slide-year {
+      font-size: 0.75rem;
+      color: var(--red);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    /* === REEL STRIP === */
+    .reel-strip {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.2rem;
+      justify-content: center;
+    }
+
+    .reel-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: background 0.3s, transform 0.3s;
+    }
+
+    .reel-dot.active {
+      background: var(--gold);
+      transform: scale(1.3);
+      box-shadow: 0 0 8px var(--gold);
+    }
+
+    /* === BUTTON === */
+    .btn-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 1.8rem;
+    }
+
+    #next-btn {
+      background: var(--red);
+      background-image: linear-gradient(135deg, #d44a3a, #9b2a1f);
+      color: var(--cream);
+      border: none;
+      padding: 0.9rem 2.5rem;
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 2px;
+      box-shadow:
+        0 4px 0 var(--dark-red),
+        0 6px 16px rgba(0,0,0,0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+      position: relative;
+    }
+
+    #next-btn:hover {
+      background-image: linear-gradient(135deg, #e05a48, #aa3020);
+    }
+
+    #next-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 var(--dark-red), 0 2px 8px rgba(0,0,0,0.4);
+    }
+
+    /* === COUNTER === */
+    .counter {
+      text-align: center;
+      margin-top: 0.8rem;
+      color: rgba(255,255,255,0.25);
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+    }
+
+    /* === ANIMATIONS === */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>ViewMaster</h1>
+    <p>American Social Injustice</p>
+  </header>
+
+  <div class="viewer-device">
+    <div class="device-body">
+      <div class="lens-frame">
+        <img id="slide-image" src="" alt="Social justice slide" />
+      </div>
+      <div class="device-label">&#9679; View &bull; Witness &bull; Act &#9679;</div>
+    </div>
+
+    <div class="slide-card" id="slide-card">
+      <div class="slide-number" id="slide-number">Slide 1 of 7</div>
+      <h2 id="slide-title">Loading...</h2>
+      <p id="slide-description"></p>
+      <div class="slide-meta">
+        <span id="slide-author"></span>
+        <span id="slide-year"></span>
+      </div>
+    </div>
+
+    <div class="reel-strip" id="reel-strip"></div>
+
+    <div class="btn-wrap">
+      <button id="next-btn">&#9654;&nbsp; Next Slide</button>
+    </div>
+
+    <div class="counter" id="counter">viewed: 0 slides</div>
+  </div>
+
+  <script>
+    // ── CLASS DEFINITION ────────────────────────────────────────────────────
+    class ViewMasterSlide {
+      constructor(title, image, description, author, year) {
+        this.title       = title;
+        this.image       = image;
+        this.description = description;
+        this.author      = author;
+        this.year        = year;
+      }
+    }
+
+    // ── OBJECTS ─────────────────────────────────────────────────────────────
+    const slide1 = new ViewMasterSlide(
+      "Poverty in the Deep South",
+      "images/poverty_south.jpg",
+      "Persistent poverty in rural Appalachia and the Mississippi Delta leaves families without reliable access to food, clean water, or healthcare — in one of the wealthiest nations on earth. Generations of economic disinvestment, underfunded schools, and lack of infrastructure have created pockets of deprivation that rival developing nations. These communities are largely invisible to policymakers, their struggles rarely making national headlines.",
+      "Getty Images / iStock",
+      "approx. 2020"
+    );
+
+    const slide2 = new ViewMasterSlide(
+      "The Opioid Crisis — Rural Montana",
+      "images/homelessness_montana.jpg",
+      "Homelessness and drug dependency have surged across Montana's small cities and rural towns, driven by the opioid epidemic and methamphetamine use that have devastated working-class communities. Shelters in cities like Billings and Great Falls are consistently over capacity, and many individuals cycle through emergency rooms with no path to long-term care. Montana's vast geography makes access to treatment facilities an almost insurmountable barrier for those in crisis.",
+      "Freepik",
+      "approx. 2022"
+    );
+
+    const slide3 = new ViewMasterSlide(
+      "Gun Violence in Washington, D.C.",
+      "images/dc_violence.jpg",
+      "Washington, D.C. — home to the U.S. Congress and the nation's most powerful policymakers — has one of the highest per-capita murder rates of any American city. Gun violence falls disproportionately on Black residents in underserved neighborhoods east of the Anacostia River, communities with less access to jobs, quality schools, and mental health resources. The proximity of political power to this suffering makes the lack of meaningful legislative response all the more stark.",
+      "Drazen Zigic / Freepik",
+      "approx. 2023"
+    );
+
+    const slide4 = new ViewMasterSlide(
+      "Portland After Drug Decriminalization",
+      "images/portland_drugs.jpg",
+      "Following Oregon's Measure 110, which decriminalized small amounts of hard drugs in 2020, Portland struggled with a highly visible public drug crisis as treatment infrastructure failed to meet the surge in need. Encampments grew along downtown streets and public spaces, and open fentanyl use became common in neighborhoods across the city. Oregon ultimately reversed the policy in 2024, but the episode exposed the gap between decriminalization as policy and the investment in social services required to make it work.",
+      "KOIN.com",
+      "approx. 2023"
+    );
+
+    const slide5 = new ViewMasterSlide(
+      "California Wildfires — Coastal Communities",
+      "images/california_fires.jpg",
+      "Catastrophic wildfires have repeatedly destroyed California coastal and foothill communities, with the 2025 Los Angeles fires burning through Pacific Palisades, Altadena, and surrounding neighborhoods and causing tens of billions in damage. Climate change has lengthened fire seasons and intensified burn severity, while housing costs have pushed lower-income residents into higher-risk zones. Recovery is slow and unequal — wealthier homeowners rebuild while renters and the uninsured are often permanently displaced.",
+      "Wirestock",
+      "approx. 2025"
+    );
+
+    const slide6 = new ViewMasterSlide(
+      "Immigration at the Texas Border",
+      "images/texas_border.jpg",
+      "Thousands of migrants and asylum seekers arrive daily at the U.S.-Mexico border in Texas, fleeing violence, poverty, and political instability in Central and South America. Processing centers are chronically overwhelmed, and families sometimes wait for months in makeshift camps under bridges or in overcrowded holding facilities. The human cost of broken immigration policy is borne most heavily by those with the least power — children, women, and families who came seeking safety.",
+      "Nils Huenerfuerst / Unsplash",
+      "approx. 2023"
+    );
+
+    const slide7 = new ViewMasterSlide(
+      "Fortified Schools — Urban America",
+      "images/school_security.jpg",
+      "In many urban school districts across America, students pass through metal detectors, locked gates, and armed security personnel just to begin their school day. These measures — implemented in response to violence both inside and outside school walls — create an environment that some researchers compare to incarceration, affecting students' sense of safety, belonging, and trust in institutions. The communities that most need well-resourced, welcoming schools are often the ones that receive surveillance and control instead.",
+      "AP Photo / Eric Gay",
+      "approx. 2022"
+    );
+
+    // ── ARRAY ────────────────────────────────────────────────────────────────
+    const slides = [slide1, slide2, slide3, slide4, slide5, slide6, slide7];
+
+    // ── STATE ────────────────────────────────────────────────────────────────
+    let lastIndex   = -1;
+    let viewedCount = 0;
+    let currentIdx  = 0;
+
+    // ── DOM REFS ─────────────────────────────────────────────────────────────
+    const imgEl    = document.getElementById('slide-image');
+    const titleEl  = document.getElementById('slide-title');
+    const descEl   = document.getElementById('slide-description');
+    const authorEl = document.getElementById('slide-author');
+    const yearEl   = document.getElementById('slide-year');
+    const numEl    = document.getElementById('slide-number');
+    const cardEl   = document.getElementById('slide-card');
+    const counterEl= document.getElementById('counter');
+    const reelEl   = document.getElementById('reel-strip');
+    const btn      = document.getElementById('next-btn');
+
+    // ── BUILD REEL DOTS ───────────────────────────────────────────────────────
+    slides.forEach((_, i) => {
+      const dot = document.createElement('div');
+      dot.className = 'reel-dot';
+      dot.id = `dot-${i}`;
+      reelEl.appendChild(dot);
+    });
+
+    // ── DISPLAY FUNCTION ─────────────────────────────────────────────────────
+    function displaySlide(idx, animate = true) {
+      const slide = slides[idx];
+
+      if (animate) {
+        imgEl.classList.add('fade-out');
+        cardEl.classList.add('fade-out');
+
+        setTimeout(() => {
+          updateContent(slide, idx);
+          imgEl.classList.remove('fade-out');
+          cardEl.classList.remove('fade-out');
+        }, 420);
+      } else {
+        updateContent(slide, idx);
+      }
+    }
+
+    function updateContent(slide, idx) {
+      imgEl.src          = slide.image;
+      imgEl.alt          = slide.title;
+      titleEl.textContent  = slide.title;
+      descEl.textContent   = slide.description;
+      authorEl.textContent = '✦ ' + slide.author;
+      yearEl.textContent   = slide.year;
+      numEl.textContent    = `Slide ${idx + 1} of ${slides.length}`;
+
+      // Update reel dots
+      document.querySelectorAll('.reel-dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === idx);
+      });
+
+      currentIdx = idx;
+    }
+
+    // ── BUTTON HANDLER ────────────────────────────────────────────────────────
+    btn.addEventListener('click', () => {
+      let newIndex;
+      do {
+        newIndex = Math.floor(Math.random() * slides.length);
+      } while (newIndex === lastIndex);
+
+      lastIndex = newIndex;
+      viewedCount++;
+      counterEl.textContent = `viewed: ${viewedCount} slide${viewedCount !== 1 ? 's' : ''}`;
+
+      displaySlide(newIndex, true);
+    });
+
+    // ── INITIAL LOAD ──────────────────────────────────────────────────────────
+    const startIdx = Math.floor(Math.random() * slides.length);
+    lastIndex = startIdx;
+    displaySlide(startIdx, false);
+  </script>
+</body>
+</html>
