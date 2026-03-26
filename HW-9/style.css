@@ -1,0 +1,261 @@
+/* ============================================
+   FIRST BREATH — Ranch Living Poster
+   Earthy tones: soil, straw, sage, dawn sky
+   ============================================ */
+
+:root {
+  --soil:       #3b2a1a;
+  --bark:       #5c3d20;
+  --straw:      #c9a96e;
+  --cream:      #f0e6cc;
+  --sage:       #7a8c6e;
+  --sage-light: #a8b89a;
+  --dawn:       #d4956a;
+  --dusk:       #8b5e3c;
+  --sky:        #b8cfc4;
+  --text-light: #f5edd8;
+  --text-dark:  #2a1a0e;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--soil);
+}
+
+/* ============ CANVAS ============ */
+#canvas {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(ellipse at 30% 60%, #4a3220 0%, #2b1d10 50%, #1a1008 100%);
+  overflow: hidden;
+}
+
+/* Grain texture overlay */
+#grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============ SHAPES ============ */
+.shape {
+  position: absolute;
+  opacity: 0;
+  z-index: 2;
+}
+
+#shape-a {
+  width: 180px;
+  height: 180px;
+  top: 10%;
+  left: 5%;
+  background: radial-gradient(circle, var(--dawn) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(2px);
+}
+
+#shape-b {
+  width: 120px;
+  height: 120px;
+  bottom: 15%;
+  right: 8%;
+  background: var(--sage);
+  border-radius: 50%;
+}
+
+#shape-c {
+  width: 0;
+  height: 0;
+  bottom: 20%;
+  left: 12%;
+  border-left: 50px solid transparent;
+  border-right: 50px solid transparent;
+  border-bottom: 86px solid var(--straw);
+  opacity: 0;
+  filter: blur(1px);
+}
+
+/* ============ IMAGES ============ */
+#img-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  max-width: 55vw;
+  z-index: 5;
+  border: 3px solid var(--straw);
+  box-shadow: 0 0 60px rgba(0,0,0,0.7), 0 0 120px rgba(60,30,10,0.4);
+  display: none;
+  overflow: hidden;
+}
+
+#img-frame img {
+  width: 100%;
+  height: 300px;
+  object-fit: cover;
+  display: block;
+  filter: sepia(20%) contrast(1.05) brightness(0.95);
+}
+
+#img-frame-2 {
+  position: absolute;
+  top: 15%;
+  right: 6%;
+  width: 200px;
+  max-width: 25vw;
+  z-index: 4;
+  border: 2px solid var(--bark);
+  box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  display: none;
+  overflow: hidden;
+}
+
+#img-frame-2 img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  filter: sepia(30%) contrast(1.1) brightness(0.9);
+}
+
+/* ============ TITLE ============ */
+#title-block {
+  position: absolute;
+  top: 6%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 10;
+}
+
+#title-top {
+  display: block;
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  font-style: italic;
+  color: var(--cream);
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.6);
+}
+
+#title-sub {
+  display: block;
+  font-family: 'Libre Baskerville', serif;
+  font-size: clamp(0.75rem, 1.5vw, 1rem);
+  color: var(--straw);
+  letter-spacing: 0.35em;
+  text-transform: lowercase;
+  margin-top: 4px;
+  opacity: 0.85;
+}
+
+/* ============ TEXT DISPLAY ============ */
+#text-display {
+  position: absolute;
+  bottom: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  max-width: 600px;
+  text-align: center;
+  z-index: 10;
+}
+
+#main-text {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1rem, 2.2vw, 1.5rem);
+  color: var(--cream);
+  line-height: 1.6;
+  font-style: italic;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+  display: none;
+}
+
+/* ============ DIMENSION LABEL ============ */
+#dimension-label {
+  position: absolute;
+  top: 50%;
+  left: 3%;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: center center;
+  z-index: 10;
+}
+
+#dim-name {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--sage-light);
+  opacity: 0;
+}
+
+/* ============ FOOTER ============ */
+#footer-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 42px;
+  background: rgba(30,18,8,0.85);
+  border-top: 1px solid var(--bark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+#footer-bar span {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  color: var(--straw);
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+/* ============ AMBIENT GLOW ============ */
+#canvas::before {
+  content: '';
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,169,110,0.08) 0%, transparent 70%);
+  top: -100px;
+  right: -100px;
+  pointer-events: none;
+  z-index: 0;
+  animation: glowPulse 8s ease-in-out infinite;
+}
+
+#canvas::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(122,140,110,0.07) 0%, transparent 70%);
+  bottom: -80px;
+  left: -80px;
+  pointer-events: none;
+  z-index: 0;
+  animation: glowPulse 10s ease-in-out infinite reverse;
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.1); }
+}

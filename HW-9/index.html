@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>First Breath — A Living Ranch Poster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div id="canvas">
+
+    <!-- Background texture layer -->
+    <div id="grain"></div>
+
+    <!-- Shape system -->
+    <div id="shape-a" class="shape"></div>
+    <div id="shape-b" class="shape"></div>
+    <div id="shape-c" class="shape"></div>
+
+    <!-- Image system -->
+    <div id="img-frame">
+      <img id="main-img" src="" alt="Ranch scene" />
+    </div>
+
+    <!-- Secondary floating image -->
+    <div id="img-frame-2">
+      <img id="secondary-img" src="" alt="Ranch detail" />
+    </div>
+
+    <!-- Title overlay -->
+    <div id="title-block">
+      <span id="title-top">First Breath</span>
+      <span id="title-sub">chaos &nbsp;→&nbsp; calm</span>
+    </div>
+
+    <!-- Text system -->
+    <div id="text-display">
+      <p id="main-text"></p>
+    </div>
+
+    <!-- Dimension label -->
+    <div id="dimension-label">
+      <span id="dim-name"></span>
+    </div>
+
+    <!-- Footer -->
+    <div id="footer-bar">
+      <span>Eight Dimensions of Wellbeing &nbsp;·&nbsp; Ranch Edition</span>
+    </div>
+
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
