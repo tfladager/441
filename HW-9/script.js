@@ -11,36 +11,25 @@ $(document).ready(function () {
      Using reliable public domain images
      Arc: stormy sky → cattle → calf → calm pasture
   ================================================ */
+  // Your actual ranch photos — stored in /imgs folder
   const images = [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Stormy_Skies.jpg/800px-Stormy_Skies.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/NewbornCalfVA.JPG/800px-NewbornCalfVA.JPG",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Cow_and_calf.jpg/800px-Cow_and_calf.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Cow_female_black_white.jpg/800px-Cow_female_black_white.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Sunrise_over_the_sea.jpg/800px-Sunrise_over_the_sea.jpg",
+    "imgs/ranch1.png",  // Mama & babies, mountains behind
+    "imgs/ranch2.png",  // New calf spotted from the pickup
+    "imgs/ranch3.png",  // Working the herd in the pasture
+    "imgs/ranch5.png",  // Calf wrapped in John Deere blanket
+    "imgs/ranch6.png",  // You with the calf — the calm
   ];
 
   const images2 = [
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Good_Food_Display_-_NCI_Visuals_Online.jpg/400px-Good_Food_Display_-_NCI_Visuals_Online.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Haybales_in_a_field.jpg/400px-Haybales_in_a_field.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/thirty/Rural_fence.jpg/400px-Rural_fence.jpg",
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/400px-Camponotus_flavomarginatus_ant.jpg",
+    "imgs/ranch4.png",  // House dog on the scene
+    "imgs/ranch5.png",  // Calf in blanket — detail shot
+    "imgs/ranch2.png",  // Calf from pickup door
+    "imgs/ranch1.png",  // Ranch overview
   ];
 
-  // Use picsum as guaranteed fallback — earthy-toned nature photos by seed
-  const imagesFallback = [
-    "https://picsum.photos/seed/storm/800/500",
-    "https://picsum.photos/seed/cattle/800/500",
-    "https://picsum.photos/seed/calf/800/500",
-    "https://picsum.photos/seed/ranch/800/500",
-    "https://picsum.photos/seed/sunrise/800/500",
-  ];
-
-  const images2Fallback = [
-    "https://picsum.photos/seed/barn/400/280",
-    "https://picsum.photos/seed/hay/400/280",
-    "https://picsum.photos/seed/fence/400/280",
-    "https://picsum.photos/seed/field/400/280",
-  ];
+  // No fallback needed — these are local files
+  const imagesFallback = images;
+  const images2Fallback = images2;
 
   let imgIndex = 0;
   let img2Index = 0;
