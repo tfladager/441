@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weird & Wonderful US Place Names</title>
+
+  <!-- Google Fonts: Abril Fatface (display) + Lora (body) -->
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+
+  <!-- jQuery via CDN -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+  <style>
+    /* ─── CSS Variables ─── */
+    :root {
+      --cream:    #f5f0e8;
+      --ink:      #1a1208;
+      --rust:     #c0390b;
+      --gold:     #d4a017;
+      --sage:     #5a7a5a;
+      --card-bg:  #fffdf7;
+      --shadow:   rgba(26, 18, 8, 0.15);
+      --highlight-bg: #fff3b0;
+      --highlight-border: #d4a017;
+    }
+
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--cream);
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 28px,
+          rgba(180,160,120,0.08) 28px,
+          rgba(180,160,120,0.08) 29px
+        );
+      color: var(--ink);
+      font-family: 'Lora', Georgia, serif;
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* ─── Header ─── */
+    header {
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto 3rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 3px double var(--rust);
+    }
+
+    header h1 {
+      font-family: 'Abril Fatface', serif;
+      font-size: clamp(2rem, 6vw, 3.8rem);
+      color: var(--rust);
+      line-height: 1.1;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      margin-top: 0.75rem;
+      font-style: italic;
+      color: #6b5a3e;
+      font-size: 1rem;
+    }
+
+    /* ─── Controls ─── */
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+
+    .controls button {
+      font-family: 'Lora', serif;
+      font-size: 0.85rem;
+      padding: 0.45rem 1.1rem;
+      border: 2px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      border-radius: 2px;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .controls button:hover {
+      background: var(--ink);
+      color: var(--cream);
+    }
+
+    .controls button.active {
+      background: var(--rust);
+      border-color: var(--rust);
+      color: white;
+    }
+
+    /* ─── Grid ─── */
+    #places-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* ─── Cards ─── */
+    .place-card {
+      background: var(--card-bg);
+      border: 1px solid rgba(26,18,8,0.12);
+      border-top: 4px solid var(--rust);
+      border-radius: 2px;
+      padding: 1.4rem 1.5rem 1.5rem;
+      box-shadow: 3px 3px 0 var(--shadow);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      position: relative;
+      opacity: 0;
+      transform: translateY(18px);
+      animation: fadeUp 0.4s forwards;
+    }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .place-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 5px 6px 0 var(--shadow);
+    }
+
+    /* Highlighted state — applied by jQuery plugin */
+    .place-card.highlighted {
+      background: var(--highlight-bg);
+      border-top-color: var(--highlight-border);
+      border-color: var(--highlight-border);
+    }
+
+    .card-name {
+      font-family: 'Abril Fatface', serif;
+      font-size: 1.55rem;
+      color: var(--rust);
+      line-height: 1.15;
+    }
+
+    .card-state {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--sage);
+      font-weight: 600;
+      margin-top: 0.2rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .card-population {
+      font-size: 0.82rem;
+      color: #6b5a3e;
+      margin-bottom: 0.9rem;
+      font-style: italic;
+    }
+
+    .card-population span {
+      font-style: normal;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .card-fact {
+      font-size: 0.92rem;
+      line-height: 1.65;
+      color: #3a2e1e;
+      border-left: 3px solid var(--gold);
+      padding-left: 0.85rem;
+    }
+
+    /* ─── Loading / Error States ─── */
+    #status-message {
+      text-align: center;
+      font-style: italic;
+      color: #6b5a3e;
+      padding: 2rem;
+    }
+
+    /* ─── Footer ─── */
+    footer {
+      text-align: center;
+      margin-top: 3.5rem;
+      font-size: 0.78rem;
+      color: #9a8060;
+      font-style: italic;
+      border-top: 1px solid rgba(26,18,8,0.1);
+      padding-top: 1.5rem;
+    }
+
+    /* ─── Stagger card animations ─── */
+    .place-card:nth-child(1)  { animation-delay: 0.05s; }
+    .place-card:nth-child(2)  { animation-delay: 0.10s; }
+    .place-card:nth-child(3)  { animation-delay: 0.15s; }
+    .place-card:nth-child(4)  { animation-delay: 0.20s; }
+    .place-card:nth-child(5)  { animation-delay: 0.25s; }
+    .place-card:nth-child(6)  { animation-delay: 0.30s; }
+    .place-card:nth-child(7)  { animation-delay: 0.35s; }
+    .place-card:nth-child(8)  { animation-delay: 0.40s; }
+    .place-card:nth-child(9)  { animation-delay: 0.45s; }
+    .place-card:nth-child(10) { animation-delay: 0.50s; }
+    .place-card:nth-child(n+11) { animation-delay: 0.55s; }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>Weird &amp; Wonderful<br>US Place Names</h1>
+    <p>Real towns. Real names. Zero explanation sufficient.</p>
+  </header>
+
+  <div class="controls">
+    <button id="btn-highlight-all" class="active">✦ Highlight All</button>
+    <button id="btn-clear">Clear Highlights</button>
+    <button id="btn-sort-name">Sort A–Z</button>
+    <button id="btn-sort-pop">Sort by Population</button>
+  </div>
+
+  <div id="status-message">Loading places...</div>
+  <div id="places-container"></div>
+
+  <footer>
+    Data loaded via jQuery AJAX · All places are real · No towns were harmed in the making of this page
+  </footer>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // Custom jQuery Plugin: $.fn.weirdHighlight
+    // Toggles a "highlighted" class on cards,
+    // with an optional brief flash animation.
+    // Reusable on any jQuery selection.
+    // ─────────────────────────────────────────────
+    $.fn.weirdHighlight = function(options) {
+      var settings = $.extend({
+        toggle: true,       // true = toggle on/off; false = always add
+        flash: false        // true = quick flash effect before highlight
+      }, options);
+
+      return this.each(function() {
+        var $el = $(this);
+
+        if (settings.flash) {
+          // Quick flash: briefly scale up, then settle
+          $el.css({ transition: 'transform 0.12s ease, background 0.3s ease' })
+             .css('transform', 'scale(1.03)');
+          setTimeout(function() {
+            $el.css('transform', '');
+          }, 150);
+        }
+
+        if (settings.toggle) {
+          $el.toggleClass('highlighted');
+        } else {
+          $el.addClass('highlighted');
+        }
+      });
+    };
+
+    // ─────────────────────────────────────────────
+    // Data store — holds the loaded JSON array
+    // so we can re-render on sort without re-fetching
+    // ─────────────────────────────────────────────
+    var placesData = [];
+
+    // ─────────────────────────────────────────────
+    // Build a single card from a data object
+    // ─────────────────────────────────────────────
+    function buildCard(place) {
+      var popDisplay = place.population
+        ? place.population.toLocaleString()
+        : 'Unknown';
+
+      return $('<div>', { class: 'place-card' }).append(
+        $('<div>', { class: 'card-name',       text: place.name }),
+        $('<div>', { class: 'card-state',      text: place.state }),
+        $('<div>', { class: 'card-population' }).html(
+          'Est. population: <span>' + popDisplay + '</span>'
+        ),
+        $('<div>', { class: 'card-fact',       text: place.fun_fact })
+      );
+    }
+
+    // ─────────────────────────────────────────────
+    // Render all cards from the current placesData
+    // ─────────────────────────────────────────────
+    function renderCards() {
+      var $container = $('#places-container').empty();
+
+      $.each(placesData, function(i, place) {
+        $container.append(buildCard(place));
+      });
+
+      // Apply highlight plugin to ALL cards on initial render
+      $('.place-card').weirdHighlight({ toggle: false, flash: false });
+    }
+
+    // ─────────────────────────────────────────────
+    // AJAX: Load local JSON file with jQuery
+    // ─────────────────────────────────────────────
+    $.ajax({
+      url: 'places.json',
+      dataType: 'json',
+      success: function(data) {
+        $('#status-message').hide();
+        placesData = data;
+        renderCards();
+      },
+      error: function(jqXHR, textStatus, errorThrown) {
+        $('#status-message').text(
+          'Oops — could not load places.json. ' +
+          'Make sure both files are in the same folder and you\'re using Live Server. ' +
+          '(' + textStatus + ')'
+        );
+        console.error('AJAX error:', textStatus, errorThrown);
+      }
+    });
+
+    // ─────────────────────────────────────────────
+    // Button: Highlight All — applies plugin to all cards
+    // ─────────────────────────────────────────────
+    $('#btn-highlight-all').on('click', function() {
+      $(this).addClass('active');
+      $('#btn-clear').removeClass('active');
+      $('.place-card').weirdHighlight({ toggle: false, flash: true });
+    });
+
+    // ─────────────────────────────────────────────
+    // Button: Clear Highlights
+    // ─────────────────────────────────────────────
+    $('#btn-clear').on('click', function() {
+      $(this).addClass('active');
+      $('#btn-highlight-all').removeClass('active');
+      $('.place-card').removeClass('highlighted');
+    });
+
+    // ─────────────────────────────────────────────
+    // Button: Sort A–Z by name
+    // ─────────────────────────────────────────────
+    $('#btn-sort-name').on('click', function() {
+      placesData.sort(function(a, b) {
+        return a.name.localeCompare(b.name);
+      });
+      renderCards();
+    });
+
+    // ─────────────────────────────────────────────
+    // Button: Sort by population (ascending)
+    // ─────────────────────────────────────────────
+    $('#btn-sort-pop').on('click', function() {
+      placesData.sort(function(a, b) {
+        return (a.population || 0) - (b.population || 0);
+      });
+      renderCards();
+    });
+
+  </script>
+
+</body>
+</html>
