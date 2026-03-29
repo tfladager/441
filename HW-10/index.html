@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Weird & Wonderful US Place Names</title>
  
-  //standard template for starting code
+  /*standard template for starting code*/
 
   <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -26,7 +26,7 @@
       --highlight-border: #d4a017;
     }
 
-    //color palette to use everywhere 
+    /*color palette to use everywhere */
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -43,7 +43,7 @@
       padding: 2rem 1rem 4rem;
     }
 
-    //this is creating the background layout
+    /*this is creating the background layout*/
 
     header {
       text-align: center;
@@ -97,7 +97,7 @@
       max-width: 1100px;
       margin: 0 auto;
     }
-    //this is the grid that auto fills without any queries
+    /*this is the grid that auto fills without any queries*/
     /* ── Card wrapper ── */
     .place-card {
       position: relative;
@@ -121,7 +121,7 @@
     @keyframes fadeUp {
       to { opacity: 1; transform: translateY(0); }
     }
-    //cards start invisible and low and then fade up. fixed height card
+    /*cards start invisible and low and then fade up. fixed height card*/
     /* ── FRONT face ── */
     .card-front {
       position: absolute;
@@ -134,7 +134,7 @@
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
       transform: translateY(0%);
     }
-    //fills the card until open class is added
+    /*fills the card until open class is added*/
     .place-card.open .card-front {
       transform: translateY(-100%);
     }
@@ -152,11 +152,11 @@
       transform: translateY(100%);
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    //back starts hidden. it opens like a drawer opens
+    /*back starts hidden. it opens like a drawer opens*/
     .place-card.open .card-back {
       transform: translateY(0%);
     }
-  // for fun, a bell sounds with guardrales for old browsers
+  /*for fun, a bell sounds with guardrales for old browsers*/
     .place-card.highlighted .card-back { background: #2a1f08; }
 
     /* ── Front content ── */
@@ -404,7 +404,7 @@
       });
       $('.place-card').weirdHighlight({ toggle: false, flash: false });
     }
-    // so the places card command places an empty array outside of functions so that it is global
+    // so the placesData command places an empty array outside of functions so that it is global
     // ─────────────────────────────────────────────
     // jQuery AJAX — load the local JSON file
     // ─────────────────────────────────────────────
