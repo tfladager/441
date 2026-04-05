@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commissioner on the Run — The Daniels County Gazette</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Special+Elite&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #e8e0c8;
+      background-image:
+        repeating-linear-gradient(0deg,   transparent, transparent 40px, rgba(80,70,45,0.04) 40px, rgba(80,70,45,0.04) 41px),
+        repeating-linear-gradient(90deg,  transparent, transparent 40px, rgba(80,70,45,0.04) 40px, rgba(80,70,45,0.04) 41px);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 28px 16px 40px;
+      font-family: 'Special Elite', 'Georgia', serif;
+      color: #3a3428;
+    }
+
+    /* ── Newspaper Masthead ─────────────────── */
+    .masthead {
+      width: 660px;
+      max-width: 100%;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .masthead-rule {
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #4a4438 20%, #4a4438 80%, transparent);
+      margin: 6px 0;
+    }
+    .masthead-rule.thin {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(74,68,56,0.5) 20%, rgba(74,68,56,0.5) 80%, transparent);
+      margin: 3px 0;
+    }
+
+    .paper-name {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: #2e2820;
+      text-shadow: 1px 1px 0 rgba(0,0,0,0.12);
+      line-height: 1;
+    }
+
+    .paper-tagline {
+      font-family: 'Special Elite', serif;
+      font-size: 11px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #5a5040;
+      margin-top: 4px;
+    }
+
+    .paper-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: rgba(74,68,56,0.6);
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .headline {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 18px;
+      font-weight: 700;
+      font-style: italic;
+      color: #2e2820;
+      letter-spacing: 1px;
+      margin: 6px 0;
+      text-align: center;
+    }
+
+    /* ── Canvas wrapper ─────────────────────── */
+    .canvas-wrapper {
+      position: relative;
+      border: 3px solid #4a4438;
+      outline: 1px solid rgba(74,68,56,0.3);
+      outline-offset: 4px;
+      box-shadow:
+        0 0 0 8px #e8e0c8,
+        0 0 0 9px rgba(74,68,56,0.2),
+        0 20px 60px rgba(80,65,40,0.35),
+        inset 0 0 40px rgba(0,0,0,0.08);
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* ── Score banner ───────────────────────── */
+    .score-banner {
+      width: 660px;
+      max-width: 100%;
+      background: #ede5cc;
+      border: 1px solid #4a4438;
+      border-top: none;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .score-label {
+      font-family: 'Special Elite', serif;
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(74,68,56,0.6);
+    }
+
+    #scoreDisplay {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 14px;
+      font-style: italic;
+      color: #2e2820;
+      transition: color 0.3s;
+    }
+
+    /* ── Controls legend ────────────────────── */
+    .controls {
+      width: 660px;
+      max-width: 100%;
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(74,68,56,0.55);
+    }
+
+    .controls span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    kbd {
+      background: rgba(74,68,56,0.1);
+      border: 1px solid rgba(74,68,56,0.3);
+      padding: 2px 6px;
+      font-family: 'Special Elite', serif;
+      font-size: 9px;
+      color: #4a4438;
+    }
+
+    /* ── Legend ─────────────────────────────── */
+    .legend {
+      width: 660px;
+      max-width: 100%;
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 24px;
+    }
+
+    .legend-section {
+      border: 1px solid rgba(74,68,56,0.25);
+      padding: 10px 14px;
+      background: rgba(232,224,200,0.5);
+    }
+
+    .legend-title {
+      font-size: 9px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(74,68,56,0.55);
+      margin-bottom: 6px;
+      border-bottom: 1px solid rgba(74,68,56,0.2);
+      padding-bottom: 4px;
+    }
+
+    .legend-item {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 11px;
+      font-style: italic;
+      color: rgba(46,40,32,0.8);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .legend-pts {
+      margin-left: auto;
+      font-size: 9px;
+      color: #5a5040;
+      font-style: normal;
+      font-family: 'Special Elite', serif;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Masthead -->
+  <div class="masthead">
+    <div class="masthead-rule"></div>
+    <div class="paper-name">The Gazette</div>
+    <div class="paper-tagline">Daniels County · Scobey, Montana · Est. 1913</div>
+    <div class="masthead-rule thin"></div>
+    <div class="paper-meta">
+      <span>Vol. CXII · No. 41</span>
+      <span>★ ★ ★</span>
+      <span>Price: One Good Deed</span>
+    </div>
+    <div class="masthead-rule"></div>
+    <div class="headline">Commissioner on the Run — A Game of Governance &amp; Grit</div>
+    <div class="masthead-rule thin"></div>
+  </div>
+
+  <!-- Game Canvas -->
+  <div class="canvas-wrapper">
+    <canvas id="gameCanvas" width="660" height="510"></canvas>
+  </div>
+
+  <!-- Score -->
+  <div class="score-banner">
+    <span class="score-label">Tally:</span>
+    <span id="scoreDisplay">Commissioner Secures 0 Wins for the County</span>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <span><kbd>↑ ↓ ← →</kbd> Move</span>
+    <span><kbd>R</kbd> New Term</span>
+    <span>Collect all items to win</span>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-section">
+      <div class="legend-title">Obstacles — Do Not Engage</div>
+      <div class="legend-item">📞 The Infernal Telephone</div>
+      <div class="legend-item">📅 An Emergency Session of the Whole</div>
+      <div class="legend-item">😤 The Aggrieved Taxpayer</div>
+      <div class="legend-item">📋 The Unfunded Mandate from On High</div>
+      <div class="legend-item">🗳️ The Endless Agenda Item</div>
+    </div>
+    <div class="legend-section">
+      <div class="legend-title">Collectibles — Secure These</div>
+      <div class="legend-item">📚 A Parcel of Knowledge <span class="legend-pts">+10</span></div>
+      <div class="legend-item">🤝 A Gentleman's Agreement <span class="legend-pts">+15</span></div>
+      <div class="legend-item">💰 Federal Monies Secured <span class="legend-pts">+25</span></div>
+      <div class="legend-item">🚜 Machinery of Progress <span class="legend-pts">+20</span></div>
+      <div class="legend-item">⭐ A Victory for the People <span class="legend-pts">+30</span></div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

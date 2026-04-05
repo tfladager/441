@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "x": 70,  "y": 70,
+    "radius": 18,
+    "type": "knowledge",
+    "label": "A Parcel of Knowledge",
+    "emoji": "📚",
+    "points": 10
+  },
+  {
+    "id": 2,
+    "x": 460, "y": 75,
+    "radius": 18,
+    "type": "relationship",
+    "label": "A Gentleman's Agreement",
+    "emoji": "🤝",
+    "points": 15
+  },
+  {
+    "id": 3,
+    "x": 310, "y": 280,
+    "radius": 20,
+    "type": "grant",
+    "label": "Federal Monies Secured",
+    "emoji": "💰",
+    "points": 25
+  },
+  {
+    "id": 4,
+    "x": 75,  "y": 435,
+    "radius": 20,
+    "type": "equipment",
+    "label": "Machinery of Progress",
+    "emoji": "🚜",
+    "points": 20
+  },
+  {
+    "id": 5,
+    "x": 560, "y": 430,
+    "radius": 22,
+    "type": "win",
+    "label": "A Victory for the People",
+    "emoji": "⭐",
+    "points": 30
+  },
+  {
+    "id": 6,
+    "x": 155, "y": 175,
+    "radius": 18,
+    "type": "knowledge",
+    "label": "A Parcel of Knowledge",
+    "emoji": "📚",
+    "points": 10
+  }
+]
