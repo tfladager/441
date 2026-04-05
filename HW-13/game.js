@@ -22,6 +22,47 @@ window.addEventListener("keydown", e => {
 });
 window.addEventListener("keyup",   e => { keys[e.key] = false; });
 
+// ── Audio — sad trombone wah-wah ─────────────────────────────
+let audioCtx = null;
+let wahCooldown = 0; // prevent rapid re-triggering
+
+function playWahWah() {
+  if (wahCooldown > 0) return;
+  wahCooldown = 80; // frames before it can fire again
+
+  // Lazy-init AudioContext on first user interaction
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  const now = audioCtx.currentTime;
+  const notes = [
+    { freq: 466, start: 0,    dur: 0.18 },  // Bb4
+    { freq: 415, start: 0.16, dur: 0.18 },  // Ab4
+    { freq: 370, start: 0.32, dur: 0.18 },  // F#4
+    { freq: 311, start: 0.48, dur: 0.38 },  // Eb4 — the long sad one
+  ];
+
+  notes.forEach(({ freq, start, dur }) => {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "sawtooth"; // brassy trombone-ish
+    osc.frequency.setValueAtTime(freq, now + start);
+    // Slight pitch droop on each note for the wah feel
+    osc.frequency.linearRampToValueAtTime(freq * 0.93, now + start + dur);
+
+    gain.gain.setValueAtTime(0, now + start);
+    gain.gain.linearRampToValueAtTime(0.18, now + start + 0.02);
+    gain.gain.linearRampToValueAtTime(0.14, now + start + dur - 0.04);
+    gain.gain.linearRampToValueAtTime(0, now + start + dur);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now + start);
+    osc.stop(now + start + dur + 0.05);
+  });
+}
+
 // ── Utility ───────────────────────────────────────────────────
 function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
   return ax < bx + bw && ax + aw > bx &&
@@ -73,11 +114,13 @@ class Obstacle {
     this.type   = data.type;
     this.label  = data.label;
     this.emoji  = data.emoji;
-    this.pulse  = Math.random() * Math.PI * 2; // offset for animation
+    this.pulse  = Math.random() * Math.PI * 2;
+    this.flash  = 0; // frames to flash red on hit
   }
 
   update() {
     this.pulse += 0.04;
+    if (this.flash > 0) this.flash--;
   }
 
   draw(ctx) {
@@ -104,6 +147,12 @@ class Obstacle {
     // Aged ink stain overlay
     ctx.fillStyle = "rgba(80,65,40,0.08)";
     ctx.fillRect(this.x, this.y, this.width, this.height);
+
+    // Red flash on collision hit
+    if (this.flash > 0) {
+      ctx.fillStyle = `rgba(200,40,20,${(this.flash / 18) * 0.45})`;
+      ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
 
     // Art deco border — double rule in faded ink
     ctx.strokeStyle = "#6b6050";
@@ -256,7 +305,10 @@ class Player {
     for (const obs of obstacles) {
       if (rectsOverlap(nx, this.y, this.width, this.height,
                        obs.x, obs.y, obs.width, obs.height)) {
-        blockedX = true; break;
+        blockedX = true;
+        obs.flash = 18;
+        playWahWah();
+        break;
       }
     }
     if (!blockedX) this.x = nx;
@@ -268,7 +320,10 @@ class Player {
     for (const obs of obstacles) {
       if (rectsOverlap(this.x, ny, this.width, this.height,
                        obs.x, obs.y, obs.width, obs.height)) {
-        blockedY = true; break;
+        blockedY = true;
+        obs.flash = 18;
+        playWahWah();
+        break;
       }
     }
     if (!blockedY) this.y = ny;
@@ -563,6 +618,7 @@ async function init() {
 function loop() {
   if (!gameWon) {
     // Update
+    if (wahCooldown > 0) wahCooldown--;
     obstacles.forEach(o => o.update());
     collectibles.forEach(c => c.update());
     player.update(obstacles);
