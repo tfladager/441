@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Star Collector — Phaser Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #fff;
+    }
+    h1 {
+      font-size: 1.4rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #f0c040;
+      margin-bottom: 10px;
+      text-shadow: 0 0 12px #f0c04088;
+    }
+    #game-container canvas {
+      display: block;
+      border: 2px solid #f0c04055;
+      box-shadow: 0 0 40px #f0c04033;
+    }
+    #instructions {
+      margin-top: 10px;
+      font-size: 0.72rem;
+      color: #aaa;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <h1>⭐ Star Collector ⭐</h1>
+  <div id="game-container"></div>
+  <p id="instructions">← → MOVE &nbsp;|&nbsp; SPACE JUMP &nbsp;|&nbsp; Collect stars. Avoid spikes.</p>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+  <script>
+  // ─────────────────────────────────────────────
+  // Extensions implemented:
+  // 1. Spacebar jump (instead of up arrow)
+  // 2. Individual star gravity (each star differs)
+  // 3. Spikes hazard (reset player on touch)
+  // 4. Speed-run timer (starts on collect, stops at 0 stars)
+  // 5. Level system (advances with increased difficulty)
+  // ─────────────────────────────────────────────
+
+  const GAME_WIDTH  = 800;
+  const GAME_HEIGHT = 500;
+
+  class GameScene extends Phaser.Scene {
+    constructor() {
+      super({ key: 'GameScene' });
+    }
+
+    // ── PRELOAD ──────────────────────────────────
+    preload() {
+      // Draw all assets procedurally — no external files needed
+
+      // Player (blue dude)
+      const pg = this.make.graphics({ x: 0, y: 0, add: false });
+      pg.fillStyle(0x4488ff);
+      pg.fillRect(0, 0, 32, 48);
+      pg.fillStyle(0xffffff);
+      pg.fillRect(6, 8, 8, 8);   // left eye
+      pg.fillRect(18, 8, 8, 8);  // right eye
+      pg.fillStyle(0x222266);
+      pg.fillRect(9, 11, 4, 4);
+      pg.fillRect(21, 11, 4, 4);
+      pg.generateTexture('player', 32, 48);
+      pg.destroy();
+
+      // Ground / platform tile
+      const tg = this.make.graphics({ x: 0, y: 0, add: false });
+      tg.fillStyle(0x5c3d1e);
+      tg.fillRect(0, 0, 32, 32);
+      tg.fillStyle(0x7a5230);
+      tg.fillRect(0, 0, 32, 6);
+      tg.fillStyle(0x3d8a3d);
+      tg.fillRect(0, 0, 32, 4);
+      tg.generateTexture('ground', 32, 32);
+      tg.destroy();
+
+      // Star
+      const sg = this.make.graphics({ x: 0, y: 0, add: false });
+      sg.fillStyle(0xf0c040);
+      sg.fillCircle(12, 12, 10);
+      sg.fillStyle(0xfff0aa);
+      sg.fillCircle(9, 9, 4);
+      sg.generateTexture('star', 24, 24);
+      sg.destroy();
+
+      // Spike (triangle-ish)
+      const spg = this.make.graphics({ x: 0, y: 0, add: false });
+      spg.fillStyle(0xff3333);
+      spg.fillTriangle(12, 0, 0, 28, 24, 28);
+      spg.generateTexture('spike', 24, 28);
+      spg.destroy();
+
+      // Bomb
+      const bg2 = this.make.graphics({ x: 0, y: 0, add: false });
+      bg2.fillStyle(0x222222);
+      bg2.fillCircle(10, 12, 10);
+      bg2.fillStyle(0xff4400);
+      bg2.fillRect(8, 0, 4, 6);
+      bg2.generateTexture('bomb', 20, 24);
+      bg2.destroy();
+    }
+
+    // ── CREATE ───────────────────────────────────
+    create() {
+      // Game state
+      this.currentLevel   = this.currentLevel || 1;
+      this.score          = this.score         || 0;
+      this.timerValue     = 0;
+      this.timerRunning   = false;
+      this.timerStarted   = false;
+      this.playerDead     = false;
+
+      // Background gradient
+      const bg = this.add.graphics();
+      bg.fillGradientStyle(0x1a0a2e, 0x1a0a2e, 0x0d1a40, 0x0d1a40, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+      // Platforms group
+      this.platforms = this.physics.add.staticGroup();
+      this._buildLevel();
+
+      // Player
+      this.player = this.physics.add.sprite(100, 380, 'player');
+      this.player.setBounce(0.1);
+      this.player.setCollideWorldBounds(true);
+      this.player.setGravityY(200);
+
+      // Colliders
+      this.physics.add.collider(this.player, this.platforms);
+      this.physics.add.collider(this.stars,  this.platforms);
+      this.physics.add.collider(this.spikes, this.platforms);
+
+      // Overlap: collect stars
+      this.physics.add.overlap(
+        this.player, this.stars,
+        this._collectStar, null, this
+      );
+
+      // Overlap: touch spikes → reset
+      this.physics.add.overlap(
+        this.player, this.spikes,
+        this._hitSpike, null, this
+      );
+
+      // ── INPUT ──
+      this.cursors = this.input.keyboard.createCursorKeys();
+      // Extension 1: Spacebar jump
+      this.spaceKey = this.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.SPACE
+      );
+
+      // ── HUD ──
+      const hudStyle = {
+        fontSize: '16px',
+        fill: '#f0c040',
+        fontFamily: 'Courier New',
+        stroke: '#000',
+        strokeThickness: 3
+      };
+      this.scoreText = this.add.text(16, 16, 'Score: 0', hudStyle).setDepth(10);
+      this.levelText = this.add.text(
+        GAME_WIDTH / 2, 16,
+        `Level ${this.currentLevel}`,
+        { ...hudStyle, fontSize: '18px' }
+      ).setOrigin(0.5, 0).setDepth(10);
+
+      // Extension 4: Speed-run timer display
+      this.timerText = this.add.text(
+        GAME_WIDTH - 16, 16,
+        'Time: 0.00',
+        { ...hudStyle, fill: '#88ffcc' }
+      ).setOrigin(1, 0).setDepth(10);
+
+      // Best time display
+      const best = localStorage.getItem('bestTime');
+      this.bestText = this.add.text(
+        GAME_WIDTH - 16, 38,
+        best ? `Best: ${best}s` : 'Best: --',
+        { fontSize: '12px', fill: '#aaaaaa', fontFamily: 'Courier New', stroke: '#000', strokeThickness: 2 }
+      ).setOrigin(1, 0).setDepth(10);
+
+      // Stars-remaining counter
+      this.starsText = this.add.text(16, 38, '', {
+        fontSize: '12px', fill: '#cccccc',
+        fontFamily: 'Courier New', stroke: '#000', strokeThickness: 2
+      }).setDepth(10);
+      this._updateStarsText();
+
+      // Death flash overlay
+      this.deathOverlay = this.add.rectangle(
+        GAME_WIDTH/2, GAME_HEIGHT/2, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0
+      ).setDepth(20);
+    }
+
+    // ── BUILD LEVEL ──────────────────────────────
+    _buildLevel() {
+      const lvl = this.currentLevel;
+
+      // Clear old groups if re-building
+      if (this.stars)  this.stars.clear(true, true);
+      if (this.spikes) this.spikes.clear(true, true);
+      this.platforms.clear(true, true);
+
+      // ── Platforms ──
+      // Ground
+      for (let x = 0; x < GAME_WIDTH; x += 32) {
+        this.platforms.create(x + 16, GAME_HEIGHT - 16, 'ground');
+      }
+      // Level platforms — more at higher levels (Extension 8 naturally integrated)
+      const basePlats = [
+        { x: 150, y: 380 }, { x: 350, y: 300 }, { x: 550, y: 380 },
+        { x: 250, y: 220 }, { x: 650, y: 250 }
+      ];
+      const extraPlats = [
+        { x: 450, y: 160 }, { x: 100, y: 260 }, { x: 700, y: 160 }
+      ];
+      const allPlats = lvl >= 2
+        ? [...basePlats, ...extraPlats]
+        : basePlats;
+
+      allPlats.forEach(p => {
+        for (let i = 0; i < 4; i++) {
+          this.platforms.create(p.x + i * 32, p.y, 'ground');
+        }
+      });
+
+      // ── Stars (Extension 2 & 3: individual gravity) ──
+      this.stars = this.physics.add.group();
+      const starCount = 10 + (lvl - 1) * 3;
+      const spreadX   = (GAME_WIDTH - 80) / starCount;
+
+      for (let i = 0; i < starCount; i++) {
+        const star = this.stars.create(
+          40 + i * spreadX,
+          20 + Math.random() * 100,
+          'star'
+        );
+        star.setBounceY(Phaser.Math.FloatBetween(0.3, 0.7));
+        star.setCollideWorldBounds(true);
+        // Extension 3: each star gets its own gravity value
+        const gravY = Phaser.Math.Between(100, 400 + lvl * 60);
+        star.setGravityY(gravY);
+      }
+
+      // ── Spikes (Extension 5) ──
+      this.spikes = this.physics.add.staticGroup();
+      const spikePositions = [
+        200, 400, 600,                           // level 1 base
+        ...(lvl >= 2 ? [300, 500, 700] : []),    // level 2+
+        ...(lvl >= 3 ? [100, 350, 650] : [])     // level 3+
+      ];
+      spikePositions.forEach(x => {
+        this.spikes.create(x, GAME_HEIGHT - 46, 'spike');
+      });
+    }
+
+    // ── UPDATE ───────────────────────────────────
+    update(time, delta) {
+      if (this.playerDead) return;
+
+      const onGround = this.player.body.blocked.down;
+
+      // Movement
+      if (this.cursors.left.isDown) {
+        this.player.setVelocityX(-180 - this.currentLevel * 20);
+      } else if (this.cursors.right.isDown) {
+        this.player.setVelocityX(180 + this.currentLevel * 20);
+      } else {
+        this.player.setVelocityX(0);
+      }
+
+      // Extension 1: Jump with SPACEBAR (not up arrow)
+      const jumpPressed =
+        Phaser.Input.Keyboard.JustDown(this.spaceKey);
+
+      if (jumpPressed && onGround) {
+        this.player.setVelocityY(-520);
+      }
+
+      // Extension 4: Timer update
+      if (this.timerRunning) {
+        this.timerValue += delta / 1000;
+        this.timerText.setText(`Time: ${this.timerValue.toFixed(2)}`);
+      }
+    }
+
+    // ── COLLECT STAR ─────────────────────────────
+    _collectStar(player, star) {
+      star.disableBody(true, true);
+      this.score += 10;
+      this.scoreText.setText(`Score: ${this.score}`);
+      this._updateStarsText();
+
+      // Start timer on first star collected (Extension 4)
+      if (!this.timerStarted) {
+        this.timerStarted = true;
+        this.timerRunning = true;
+      }
+
+      // Check level complete
+      if (this.stars.countActive(true) === 0) {
+        this.timerRunning = false;
+        const elapsed = this.timerValue.toFixed(2);
+
+        // Save best time
+        const prev = parseFloat(localStorage.getItem('bestTime') || '9999');
+        if (parseFloat(elapsed) < prev) {
+          localStorage.setItem('bestTime', elapsed);
+        }
+
+        this._showLevelComplete(elapsed);
+      }
+    }
+
+    // ── HIT SPIKE ────────────────────────────────
+    _hitSpike(player, spike) {
+      if (this.playerDead) return;
+      this.playerDead = true;
+
+      // Flash red, reset player position
+      this.tweens.add({
+        targets: this.deathOverlay,
+        alpha: { from: 0.5, to: 0 },
+        duration: 600,
+        ease: 'Power2',
+        onComplete: () => { this.playerDead = false; }
+      });
+
+      this.player.setVelocity(0, -300);
+      this.player.setTint(0xff4444);
+      this.time.delayedCall(400, () => {
+        this.player.clearTint();
+        this.player.setPosition(100, 380);
+        this.player.setVelocity(0, 0);
+      });
+
+      // Penalty: lose 5 points, min 0
+      this.score = Math.max(0, this.score - 5);
+      this.scoreText.setText(`Score: ${this.score}`);
+    }
+
+    // ── LEVEL COMPLETE ───────────────────────────
+    _showLevelComplete(elapsed) {
+      // Extension 5 (Level system): show banner then advance
+      const overlay = this.add.rectangle(
+        GAME_WIDTH/2, GAME_HEIGHT/2,
+        GAME_WIDTH, GAME_HEIGHT,
+        0x000000, 0.7
+      ).setDepth(30);
+
+      const msg = this.add.text(
+        GAME_WIDTH/2, GAME_HEIGHT/2 - 40,
+        `✓ LEVEL ${this.currentLevel} COMPLETE`,
+        { fontSize: '32px', fill: '#f0c040', fontFamily: 'Courier New',
+          stroke: '#000', strokeThickness: 4 }
+      ).setOrigin(0.5).setDepth(31);
+
+      const timeMsg = this.add.text(
+        GAME_WIDTH/2, GAME_HEIGHT/2 + 10,
+        `Time: ${elapsed}s`,
+        { fontSize: '20px', fill: '#88ffcc', fontFamily: 'Courier New',
+          stroke: '#000', strokeThickness: 3 }
+      ).setOrigin(0.5).setDepth(31);
+
+      const sub = this.add.text(
+        GAME_WIDTH/2, GAME_HEIGHT/2 + 50,
+        'Next level in 3...',
+        { fontSize: '16px', fill: '#cccccc', fontFamily: 'Courier New' }
+      ).setOrigin(0.5).setDepth(31);
+
+      // Count down and advance
+      let count = 3;
+      const tick = this.time.addEvent({
+        delay: 1000,
+        repeat: 2,
+        callback: () => {
+          count--;
+          sub.setText(count > 0 ? `Next level in ${count}...` : 'GO!');
+          if (count <= 0) {
+            overlay.destroy(); msg.destroy();
+            timeMsg.destroy(); sub.destroy();
+            this.currentLevel++;
+            this.timerValue   = 0;
+            this.timerStarted = false;
+            this.timerRunning = false;
+            this.player.setPosition(100, 380);
+            this.player.setVelocity(0, 0);
+            this._buildLevel();
+            this._updateStarsText();
+            this.levelText.setText(`Level ${this.currentLevel}`);
+            // Re-add colliders after rebuild
+            this.physics.add.collider(this.stars,  this.platforms);
+            this.physics.add.collider(this.spikes, this.platforms);
+            this.physics.add.overlap(this.player, this.stars, this._collectStar, null, this);
+            this.physics.add.overlap(this.player, this.spikes, this._hitSpike, null, this);
+            // Refresh best
+            const best = localStorage.getItem('bestTime');
+            this.bestText.setText(best ? `Best: ${best}s` : 'Best: --');
+            this.timerText.setText('Time: 0.00');
+          }
+        }
+      });
+    }
+
+    _updateStarsText() {
+      const remaining = this.stars ? this.stars.countActive(true) : 0;
+      this.starsText && this.starsText.setText(`Stars: ${remaining} left`);
+    }
+  }
+
+  // ── PHASER CONFIG ────────────────────────────
+  const config = {
+    type: Phaser.AUTO,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
+    parent: 'game-container',
+    backgroundColor: '#1a0a2e',
+    physics: {
+      default: 'arcade',
+      arcade: { gravity: { y: 350 }, debug: false }
+    },
+    scene: GameScene
+  };
+
+  new Phaser.Game(config);
+  </script>
+</body>
+</html>
