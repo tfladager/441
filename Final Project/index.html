@@ -1,0 +1,2921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buck Kairos: Buck the System... or Not?</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0a2e;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+    }
+    #game-container {
+      position: relative;
+      width: min(800px, 100vw);
+      aspect-ratio: 8 / 5;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      box-shadow: 0 0 60px rgba(255, 200, 50, 0.2);
+      touch-action: none;
+    }
+    #touch-controls {
+      display: none;
+      position: absolute;
+      bottom: 10px;
+      left: 0;
+      width: 100%;
+      justify-content: space-between;
+      padding: 0 12px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .dpad {
+      display: flex;
+      gap: 8px;
+      pointer-events: all;
+    }
+    .dpad-btn {
+      width: 64px;
+      height: 64px;
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.35);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      color: white;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s;
+    }
+    .dpad-btn:active, .dpad-btn.pressed {
+      background: rgba(255,215,0,0.35);
+      border-color: #FFD700;
+    }
+    @media (max-width: 600px), (pointer: coarse) {
+      #touch-controls { display: flex; }
+      #game-container { border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <div id="touch-controls">
+      <div class="dpad">
+        <div class="dpad-btn" id="btn-left">&#8592;</div>
+        <div class="dpad-btn" id="btn-right">&#8594;</div>
+      </div>
+      <div class="dpad">
+        <div class="dpad-btn" id="btn-action">&#10003;</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ============================================================
+  // BUCK KAIROS: Buck the System... or Not?
+  // A side-scrolling choice game about doing the right thing
+  // ============================================================
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // ---- GAME STATE ----
+  const STATE = {
+    INTRO: 'intro',
+    WALKING: 'walking',
+    CHOICE: 'choice',
+    CONSEQUENCE_BAD: 'consequence_bad',
+    SECOND_CHANCE: 'second_chance',
+    CONSEQUENCE_GOOD: 'consequence_good',
+    WIN: 'win'
+  };
+  let scenarioFailedOnce = false; // tracks if current scenario already had one bad choice
+
+  // ============================================================
+  // AUDIO ENGINE — Web Audio API, no external files needed
+  // ============================================================
+  let audioCtx = null;
+
+  function getAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+
+  function playTone(freq, type, duration, vol, delay, detune) {
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.type = type || 'sine';
+      osc.frequency.value = freq;
+      if (detune) osc.detune.value = detune;
+      const start = ac.currentTime + (delay || 0);
+      gain.gain.setValueAtTime(vol || 0.3, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+      osc.start(start);
+      osc.stop(start + duration + 0.05);
+    } catch(e) {}
+  }
+
+  function playNoise(duration, vol, delay, filterFreq) {
+    try {
+      const ac = getAudio();
+      const bufSize = ac.sampleRate * duration;
+      const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const filter = ac.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = filterFreq || 400;
+      filter.Q.value = 0.8;
+      const gain = ac.createGain();
+      src.connect(filter); filter.connect(gain); gain.connect(ac.destination);
+      const start = ac.currentTime + (delay || 0);
+      gain.gain.setValueAtTime(vol || 0.2, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+      src.start(start);
+      src.stop(start + duration + 0.05);
+    } catch(e) {}
+  }
+
+  // ---- SOUND EFFECTS ----
+
+  function sfxFootstep() {
+    try {
+      const ac = getAudio();
+      // Deep heel thud
+      playTone(75, 'sine', 0.12, 0.38, 0);
+      // Boot body knock
+      playNoise(0.09, 0.32, 0, 220);
+      // Toe tap click
+      playNoise(0.04, 0.18, 0.04, 2800);
+    } catch(e) {}
+  }
+
+  function sfxGoodChoice() {
+    // Ascending sparkle arpeggio
+    [523, 659, 784, 1047].forEach((f, i) => {
+      playTone(f, 'triangle', 0.25, 0.18, i * 0.07);
+    });
+    // Shimmer on top
+    playTone(2093, 'sine', 0.4, 0.08, 0.28);
+  }
+
+  function sfxBadChoice() {
+    // Descending wah-wah trombone
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(440, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(110, ac.currentTime + 0.6);
+      gain.gain.setValueAtTime(0.22, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.7);
+      osc.start(ac.currentTime);
+      osc.stop(ac.currentTime + 0.75);
+    } catch(e) {}
+  }
+
+  function sfxBoomerangDoor() {
+    // Whoosh + BONK
+    try {
+      const ac = getAudio();
+      // Whoosh
+      const buf = ac.createBuffer(1, ac.sampleRate * 0.4, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const filt = ac.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 800;
+      const g = ac.createGain(); g.gain.setValueAtTime(0.3, ac.currentTime);
+      src.connect(filt); filt.connect(g); g.connect(ac.destination);
+      src.start(ac.currentTime);
+    } catch(e) {}
+    // BONK impact
+    playTone(180, 'square', 0.08, 0.35, 0.35);
+    playTone(120, 'square', 0.15, 0.25, 0.38);
+    playNoise(0.1, 0.2, 0.35, 300);
+    // Latte splat
+    playNoise(0.25, 0.15, 0.45, 600);
+  }
+
+  function sfxScrollingChair() {
+    // Mechanical whirring
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(60, ac.currentTime);
+      osc.frequency.linearRampToValueAtTime(200, ac.currentTime + 0.5);
+      osc.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.15, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.6);
+      osc.start(ac.currentTime); osc.stop(ac.currentTime + 0.65);
+    } catch(e) {}
+    // Repeated THUNKs
+    [0.3, 0.65, 1.0].forEach(t => {
+      playTone(160, 'square', 0.07, 0.3, t);
+      playNoise(0.08, 0.25, t, 250);
+    });
+  }
+
+  function sfxTornado() {
+    // Wind howl
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(80, ac.currentTime);
+      osc.frequency.linearRampToValueAtTime(200, ac.currentTime + 0.8);
+      osc.frequency.linearRampToValueAtTime(60, ac.currentTime + 1.8);
+      const filt = ac.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 400; filt.Q.value = 0.5;
+      osc.connect(filt); filt.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.25, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 2.0);
+      osc.start(ac.currentTime); osc.stop(ac.currentTime + 2.1);
+    } catch(e) {}
+    // Debris crash
+    playNoise(0.5, 0.3, 0.5, 500);
+    // Neighbor door slam
+    playTone(100, 'square', 0.06, 0.4, 1.4);
+    playNoise(0.1, 0.3, 1.4, 200);
+  }
+
+  function sfxBonusRipped() {
+    // Paper rip
+    playNoise(0.35, 0.35, 0.3, 3000);
+    // Sad trombone sting
+    [440, 349, 277, 220].forEach((f, i) => playTone(f, 'sawtooth', 0.2, 0.15, 0.5 + i * 0.12));
+  }
+
+  function sfxMirrorPants() {
+    // Mirror reveal shimmer
+    [1760, 2093, 2637].forEach((f, i) => playTone(f, 'sine', 0.3, 0.1, i * 0.06));
+    // Shocked gasp (breathy noise burst)
+    playNoise(0.15, 0.2, 0.4, 2000);
+    // Comedic boing for pants hole
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, ac.currentTime + 0.6);
+      osc.frequency.exponentialRampToValueAtTime(80, ac.currentTime + 1.1);
+      osc.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.3, ac.currentTime + 0.6);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.2);
+      osc.start(ac.currentTime + 0.6); osc.stop(ac.currentTime + 1.3);
+    } catch(e) {}
+  }
+
+  function sfxHoleInFloor() {
+    // Creaking floor
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(200, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(80, ac.currentTime + 0.3);
+      osc.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.2, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.4);
+      osc.start(ac.currentTime); osc.stop(ac.currentTime + 0.45);
+    } catch(e) {}
+    // Falling scream (pitch drops)
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, ac.currentTime + 0.35);
+      osc.frequency.exponentialRampToValueAtTime(150, ac.currentTime + 1.2);
+      osc.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.2, ac.currentTime + 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.3);
+      osc.start(ac.currentTime + 0.35); osc.stop(ac.currentTime + 1.35);
+    } catch(e) {}
+    // Thud at bottom
+    playTone(80, 'sine', 0.2, 0.4, 1.2);
+    playNoise(0.2, 0.3, 1.2, 200);
+  }
+
+  function sfxHotMic() {
+    // Mic feedback screech
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, ac.currentTime);
+      osc.frequency.linearRampToValueAtTime(2400, ac.currentTime + 0.4);
+      osc.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.0, ac.currentTime);
+      gain.gain.linearRampToValueAtTime(0.3, ac.currentTime + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.6);
+      osc.start(ac.currentTime); osc.stop(ac.currentTime + 0.65);
+    } catch(e) {}
+    // Crowd gasp murmur
+    playNoise(0.8, 0.15, 0.5, 600);
+    // Shrinking sound
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, ac.currentTime + 0.7);
+      osc.frequency.exponentialRampToValueAtTime(110, ac.currentTime + 1.5);
+      osc.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.15, ac.currentTime + 0.7);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.6);
+      osc.start(ac.currentTime + 0.7); osc.stop(ac.currentTime + 1.65);
+    } catch(e) {}
+  }
+
+  function sfxCartoonFight() {
+    // Run-up charge sound
+    try {
+      const ac = getAudio();
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(200, ac.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(600, ac.currentTime + 0.5);
+      osc.connect(gain); gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.18, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.55);
+      osc.start(ac.currentTime); osc.stop(ac.currentTime + 0.6);
+    } catch(e) {}
+    // CRASH / dust cloud explosion
+    playNoise(0.5, 0.4, 0.5, 400);
+    playTone(150, 'square', 0.05, 0.5, 0.5);
+    // Comedic stars boing
+    [880, 1108, 1318, 1047].forEach((f,i) => playTone(f, 'triangle', 0.15, 0.12, 0.6 + i*0.08));
+    // Sad ending chord
+    [196, 233, 277].forEach((f, i) => playTone(f, 'sawtooth', 0.4, 0.1, 1.4 + i * 0.04));
+  }
+
+  function sfxHoodOrnament() {
+    // Truck horn — long blast, Doppler pitch rise then fall, slow fade
+    [116, 146, 174].forEach((f, i) => {
+      try {
+        const ac = getAudio();
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sawtooth';
+        // Doppler: pitch rises as truck approaches, falls as it passes
+        osc.frequency.setValueAtTime(f * 0.88, ac.currentTime);
+        osc.frequency.linearRampToValueAtTime(f * 1.08, ac.currentTime + 0.5);
+        osc.frequency.linearRampToValueAtTime(f * 0.78, ac.currentTime + 1.6);
+        osc.connect(gain); gain.connect(ac.destination);
+        // Blast in, hold, slow fade out
+        gain.gain.setValueAtTime(0.0, ac.currentTime);
+        gain.gain.linearRampToValueAtTime(0.28 - i*0.04, ac.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.28 - i*0.04, ac.currentTime + 0.9);
+        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 2.4);
+        osc.start(ac.currentTime);
+        osc.stop(ac.currentTime + 2.5);
+      } catch(e) {}
+    });
+    // Tires screaming before impact
+    playNoise(0.4, 0.28, 0.0, 1400);
+    // Impact WHAM
+    playNoise(0.35, 0.55, 0.48, 280);
+    playTone(72, 'square', 0.2, 0.55, 0.48);
+    // Post-impact rumble fading
+    playNoise(0.8, 0.2, 0.7, 150);
+  }
+
+  function sfxWin() {
+    // Triumphant fanfare
+    const melody = [523,659,784,1047,784,1047,1568];
+    melody.forEach((f, i) => playTone(f, 'triangle', 0.35, 0.22, i * 0.14));
+    // Harmony
+    const harmony = [330,415,523,659,523,659,1047];
+    harmony.forEach((f, i) => playTone(f, 'triangle', 0.35, 0.1, i * 0.14));
+    // Bass
+    [130,165,196,262].forEach((f, i) => playTone(f, 'sine', 0.4, 0.15, i * 0.28));
+    // Final chord shimmer
+    [1047,1319,1568,2093].forEach((f,i) => playTone(f, 'sine', 0.8, 0.08, 0.98 + i*0.03));
+  }
+
+  // ---- JEOPARDY THINK MUSIC ----
+  let thinkMusicNodes = [];
+  let thinkMusicPlaying = false;
+
+  function sfxChoiceAppear() {
+    // Opening chime first
+    playTone(880, 'sine', 0.25, 0.12, 0);
+    playTone(1108, 'sine', 0.2, 0.08, 0.06);
+    // Then start the think loop after a brief pause
+    setTimeout(startThinkMusic, 350);
+  }
+
+  function startThinkMusic() {
+    if (thinkMusicPlaying) return;
+    thinkMusicPlaying = true;
+    thinkMusicNodes = [];
+
+    try {
+      const ac = getAudio();
+      const masterGain = ac.createGain();
+      masterGain.gain.setValueAtTime(0.18, ac.currentTime);
+      masterGain.connect(ac.destination);
+      thinkMusicNodes.push(masterGain);
+
+      // Jeopardy-style melody — the classic "bmbm bmbm bmbm bmbm bmm bmmp bmmp bmp ba bmp bmp bmp"
+      // Notes in Hz, duration in beats, 0 = rest
+      const BPM = 138;
+      const beat = 60 / BPM;
+      const h = beat / 2;   // eighth note
+      const q = beat;       // quarter note
+      const dq = beat * 1.5; // dotted quarter
+
+      const notes = [
+        // bar 1: bmbm bmbm bmbm bmbm
+        [392, h], [0, h*0.3], [330, h*0.7], [0, h*0.3],
+        [294, h], [0, h*0.3], [330, h*0.7], [0, h*0.3],
+        [392, h], [0, h*0.3], [330, h*0.7], [0, h*0.3],
+        [294, h], [0, h*0.3], [247, h*0.7], [0, h*0.3],
+        // bar 2: bmmm (hold)
+        [220, dq], [0, h*0.4],
+        // bar 3: bmmp bmmp
+        [196, h], [0, h*0.3], [220, h*0.7], [0, h*0.3],
+        [247, h], [0, h*0.3], [262, h*0.7], [0, h*0.3],
+        // bar 4: bmp ba bmp bmp bmp
+        [294, h], [0, h*0.2], [247, h*0.8],
+        [0, h*0.3], [220, h*0.7], [0, h*0.3],
+        [247, h], [0, h*0.3], [262, dq],
+        [0, h * 0.5]
+      ];
+
+      // Bass countermelody (lower octave, quieter)
+      const bass = [
+        [196, q], [0, h*0.3], [165, q*0.7], [0, h*0.3],
+        [147, q], [0, h*0.3], [165, q*0.7], [0, h*0.3],
+        [110, dq*2], [0, h*0.4],
+        [98, h], [0, h*0.3], [110, h*0.7], [0, h*0.3],
+        [123, h], [0, h*0.3], [131, h*0.7], [0, h*0.3],
+        [147, h], [0, h*0.2], [123, h*0.8],
+        [0, h*0.3], [110, h*0.7], [0, h*0.3],
+        [123, h], [0, h*0.3], [131, dq],
+        [0, h * 0.5]
+      ];
+
+      function scheduleLoop(noteList, gainVal, type, startTime, loopRef) {
+        let t = startTime;
+        const totalDuration = noteList.reduce((sum, [,dur]) => sum + dur, 0);
+
+        function scheduleNotes(offset) {
+          noteList.forEach(([freq, dur]) => {
+            if (freq > 0) {
+              try {
+                const osc = ac.createOscillator();
+                const g = ac.createGain();
+                osc.type = type;
+                osc.frequency.value = freq;
+                osc.connect(g); g.connect(masterGain);
+                g.gain.setValueAtTime(0, offset);
+                g.gain.linearRampToValueAtTime(gainVal, offset + 0.01);
+                g.gain.setValueAtTime(gainVal, offset + dur * 0.7);
+                g.gain.exponentialRampToValueAtTime(0.001, offset + dur * 0.95);
+                osc.start(offset);
+                osc.stop(offset + dur + 0.02);
+                thinkMusicNodes.push(osc, g);
+              } catch(e) {}
+            }
+            offset += dur;
+          });
+          return offset;
+        }
+
+        // Schedule 4 loops ahead
+        let currentOffset = t;
+        for (let i = 0; i < 4; i++) {
+          currentOffset = scheduleNotes(currentOffset);
+        }
+
+        // Keep scheduling more loops while music is playing
+        loopRef.timer = setInterval(() => {
+          if (!thinkMusicPlaying) {
+            clearInterval(loopRef.timer);
+            return;
+          }
+          currentOffset = scheduleNotes(currentOffset);
+        }, totalDuration * 1000 * 3);
+
+        thinkMusicNodes.push({ stop: () => clearInterval(loopRef.timer) });
+      }
+
+      const loopRef = {};
+      scheduleLoop(notes, 0.9, 'triangle', ac.currentTime + 0.05, loopRef);
+      scheduleLoop(bass, 0.45, 'sine', ac.currentTime + 0.05, loopRef);
+
+    } catch(e) {}
+  }
+
+  function stopThinkMusic() {
+    thinkMusicPlaying = false;
+    thinkMusicNodes.forEach(n => {
+      try { if (n.stop) n.stop(); } catch(e) {}
+      try { if (n.disconnect) n.disconnect(); } catch(e) {}
+    });
+    thinkMusicNodes = [];
+  }
+
+  // ============================================================
+  // WALKING MUSIC — jaunty Western stroll, loops while walking
+  // Fades down during choice/consequence, back up when walking
+  // ============================================================
+  let walkMusicStarted = false;
+  let walkMasterGain = null;
+  let walkMusicNodes = [];
+  let walkMusicAC = null;
+  let walkMusicOffset = 0;
+  let walkMusicLoopTimer = null;
+
+  function startWalkMusic() {
+    if (walkMusicStarted) return;
+    walkMusicStarted = true;
+    try {
+      const ac = getAudio();
+      walkMusicAC = ac;
+
+      // Master gain for fade in/out
+      walkMasterGain = ac.createGain();
+      walkMasterGain.gain.setValueAtTime(0.001, ac.currentTime);
+      walkMasterGain.gain.linearRampToValueAtTime(0.22, ac.currentTime + 1.5);
+      walkMasterGain.connect(ac.destination);
+
+      const BPM = 118;
+      const beat = 60 / BPM;
+      const h = beat / 2;
+      const q = beat;
+      const dq = beat * 1.5;
+      const e = beat / 4;
+
+      // ---- MELODY: bright, bouncy Western whistling tune ----
+      // A two-bar phrase that loops — G major feel
+      const melody = [
+        // bar 1 — the swagger
+        [392, q], [440, h], [392, h],
+        [350, q], [392, h], [350, h],
+        // bar 2 — the question
+        [294, q], [330, h], [294, h],
+        [262, dq], [0, h],
+        // bar 3 — the answer, rising
+        [294, h], [330, h], [350, h], [392, h],
+        // bar 4 — landing home
+        [440, h], [392, h], [350, q],
+        [294, dq], [0, h],
+        // bar 5 — variation
+        [392, h], [440, h], [494, h], [523, h],
+        // bar 6 — descend
+        [494, h], [440, h], [392, q],
+        [350, h], [330, h],
+        // bar 7 — walking feel
+        [294, q], [330, h], [350, h],
+        [392, q], [440, h], [392, h],
+        // bar 8 — final phrase back to top
+        [350, q], [330, h], [294, h],
+        [262, dq*2], [0, h],
+      ];
+
+      // ---- BASS: oom-pah Western walking bass ----
+      const bassNotes = [
+        [98, e], [147, e], [196, e], [147, e],   // G oom-pah
+        [98, e], [147, e], [196, e], [147, e],
+        [87, e], [131, e], [175, e], [131, e],   // F
+        [87, e], [131, e], [175, e], [131, e],
+        [73, e], [110, e], [147, e], [110, e],   // D
+        [73, e], [110, e], [147, e], [110, e],
+        [65, e], [98, e],  [131, e], [98, e],    // C
+        [65, e], [98, e],  [131, e], [98, e],
+        [98, e], [147, e], [196, e], [147, e],
+        [98, e], [147, e], [196, e], [147, e],
+        [87, e], [131, e], [175, e], [131, e],
+        [87, e], [131, e], [175, e], [131, e],
+        [73, e], [110, e], [147, e], [110, e],
+        [73, e], [110, e], [147, e], [110, e],
+        [65, e], [98, e],  [131, e], [98, e],
+        [65, e], [65, e],  [65, e],  [65, e],
+      ];
+
+      // ---- RHYTHM: light percussive tick (hi-hat feel) ----
+      function scheduleRhythm(startTime, duration) {
+        const tickInterval = beat / 2;
+        const ticks = Math.floor(duration / tickInterval);
+        for (let i = 0; i < ticks; i++) {
+          try {
+            const bufSize = Math.floor(ac.sampleRate * 0.03);
+            const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let j = 0; j < bufSize; j++) d[j] = (Math.random()*2-1) * Math.pow(1 - j/bufSize, 3);
+            const src = ac.createBufferSource(); src.buffer = buf;
+            const filt = ac.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 6000;
+            const g = ac.createGain();
+            const vol = (i % 2 === 0) ? 0.12 : 0.06; // downbeat louder
+            g.gain.setValueAtTime(vol, startTime + i * tickInterval);
+            src.connect(filt); filt.connect(g); g.connect(walkMasterGain);
+            src.start(startTime + i * tickInterval);
+            src.stop(startTime + i * tickInterval + 0.04);
+          } catch(e2) {}
+        }
+      }
+
+      function schedulePart(noteList, gainVal, type, startTime) {
+        let t = startTime;
+        noteList.forEach(([freq, dur]) => {
+          if (freq > 0) {
+            try {
+              const osc = ac.createOscillator();
+              const g = ac.createGain();
+              osc.type = type;
+              osc.frequency.value = freq;
+              osc.connect(g); g.connect(walkMasterGain);
+              g.gain.setValueAtTime(0, t);
+              g.gain.linearRampToValueAtTime(gainVal, t + 0.015);
+              g.gain.setValueAtTime(gainVal, t + dur * 0.72);
+              g.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.92);
+              osc.start(t);
+              osc.stop(t + dur + 0.03);
+              walkMusicNodes.push(osc, g);
+            } catch(e2) {}
+          }
+          t += dur;
+        });
+        return t;
+      }
+
+      const loopDuration = melody.reduce((s,[,d])=>s+d, 0);
+
+      function scheduleLoop(startTime) {
+        const melEnd = schedulePart(melody, 0.9, 'triangle', startTime);
+        schedulePart(bassNotes, 0.7, 'sine', startTime);
+        scheduleRhythm(startTime, loopDuration);
+        // Schedule next loop
+        walkMusicLoopTimer = setTimeout(() => {
+          if (walkMusicStarted) scheduleLoop(startTime + loopDuration);
+        }, (loopDuration - 0.5) * 1000);
+      }
+
+      scheduleLoop(ac.currentTime + 0.1);
+
+    } catch(e) { walkMusicStarted = false; }
+  }
+
+  function fadeWalkMusic(targetVol, duration) {
+    if (!walkMasterGain || !walkMusicAC) return;
+    try {
+      const now = walkMusicAC.currentTime;
+      walkMasterGain.gain.cancelScheduledValues(now);
+      walkMasterGain.gain.setValueAtTime(walkMasterGain.gain.value, now);
+      if (targetVol <= 0.001) {
+        walkMasterGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      } else {
+        walkMasterGain.gain.linearRampToValueAtTime(targetVol, now + duration);
+      }
+    } catch(e) {}
+  }
+
+  function stopWalkMusic() {
+    walkMusicStarted = false;
+    if (walkMusicLoopTimer) clearTimeout(walkMusicLoopTimer);
+    walkMusicNodes.forEach(n => {
+      try { if (n.stop) n.stop(); } catch(e) {}
+      try { if (n.disconnect) n.disconnect(); } catch(e) {}
+    });
+    walkMusicNodes = [];
+    walkMasterGain = null;
+  }
+
+  function sfxSecondChance() {
+    // Warning chime — tense, lower
+    playTone(440, 'triangle', 0.4, 0.18, 0);
+    playTone(370, 'triangle', 0.4, 0.12, 0.08);
+    playTone(330, 'triangle', 0.5, 0.15, 0.2);
+  }
+
+  function sfxIntroStinger() {
+    // Title reveal stinger
+    playTone(261, 'triangle', 0.3, 0.15, 0);
+    playTone(329, 'triangle', 0.3, 0.12, 0.1);
+    playTone(523, 'triangle', 0.5, 0.18, 0.2);
+    playTone(1047, 'sine', 0.7, 0.12, 0.35);
+  }
+
+  // Footstep throttle
+  let lastFootstepFrame = 0;
+  function maybeFootstep(walkFrame) {
+    const step = Math.floor(walkFrame / 7);
+    if (step !== lastFootstepFrame) {
+      lastFootstepFrame = step;
+      sfxFootstep();
+    }
+  }
+
+  // Map scenario types to their sound functions
+  const scenarioSFX = {
+    boomerang_door: sfxBoomerangDoor,
+    scrolling_chair: sfxScrollingChair,
+    tornado: sfxTornado,
+    bonus_ripped: sfxBonusRipped,
+    mirror_pants: sfxMirrorPants,
+    hole_in_floor: sfxHoleInFloor,
+    hot_mic: sfxHotMic,
+    cartoon_fight: sfxCartoonFight,
+    hood_ornament: sfxHoodOrnament
+  };
+
+  let gameState = STATE.INTRO;
+  let introAlpha = 0;
+  let introTimer = 0;
+  let introPhase = 0; // 0=walkon, 1=title, 2=tagline, 3=prompt
+  let anyKeyPressed = false;
+  let introWalkX = -60;  // Buck walks in from left
+  let introWalkFrame = 0;
+
+  // ---- WORLD ----
+  const GROUND_Y = 400;
+  const WORLD_WIDTH = 800;
+  let scrollX = 0;
+  let targetScrollX = 0;
+  let worldDarkness = 0;  // 0=bright, increases with bad choices, max ~0.6
+
+  // ---- BUCK ----
+  const buck = {
+    x: 120,
+    y: GROUND_Y - 60,
+    width: 40,
+    height: 60,
+    velX: 0,
+    velY: 0,
+    speed: 2.5,
+    walking: false,
+    walkFrame: 0,
+    walkTimer: 0,
+    facing: 1,
+    karma: 0, // good choices count
+    alive: true,
+    bouncing: false,
+    bounceTimer: 0
+  };
+
+  // ---- SCENARIOS ----
+  // Each scenario has a trigger x position, a choice prompt, two options, and consequence data
+  const scenarios = [
+    {
+      id: 1,
+      worldX: 700,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "A Door Moment",
+      setting: "coffee_shop",
+      good: { label: "Hold the door", karma: true },
+      bad: { label: "Keep going, they're adults" },
+      consequence: {
+        type: "boomerang_door",
+        text: "The door BOOMERANGS back and sends Buck flying!\nHis latte goes EVERYWHERE. ☕💥"
+      },
+      goodText: "Buck holds the door. The stranger smiles.\nSomeone holds one for Buck later that day. ☀️"
+    },
+    {
+      id: 2,
+      worldX: 1400,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "The Big Meeting",
+      setting: "office",
+      good: { label: "Put it away and listen", karma: true },
+      bad: { label: "Just a quick scroll..." },
+      consequence: {
+        type: "scrolling_chair",
+        text: "Buck's CHAIR starts scrolling!\nHis head bounces off the table. THUNK. THUNK. THUNK. 😵"
+      },
+      goodText: "Buck puts the phone away. His boss notices.\n\"Good to have you present, Buck.\" 💼"
+    },
+    {
+      id: 3,
+      worldX: 2100,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "The Neighbor",
+      setting: "neighborhood",
+      good: { label: "Go help them out", karma: true },
+      bad: { label: "Not my problem" },
+      consequence: {
+        type: "tornado",
+        text: "Buck gets home to find a TORNADO hit his house.\nThe neighbors watch... and quietly go inside. 🌪️🚪"
+      },
+      goodText: "Buck helps the neighbor. They laugh and talk.\nThe neighborhood feels a little warmer. 🏡"
+    },
+    {
+      id: 4,
+      worldX: 2800,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "Dropped Items",
+      setting: "hallway",
+      good: { label: "Help pick it up", karma: true },
+      bad: { label: "Not my mess" },
+      consequence: {
+        type: "bonus_ripped",
+        text: "It was the boss's secretary.\nWhen she finds Buck's bonus check... she rips it up. 💸😬"
+      },
+      goodText: "Buck helps gather everything.\nShe remembers his name from then on. ✨"
+    },
+    {
+      id: 5,
+      worldX: 3500,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "The Dress Question",
+      setting: "coffee shop",
+      good: { label: "Be honest and kind", karma: true },
+      bad: { label: "\"You look AMAZING!\"" },
+      consequence: {
+        type: "mirror_pants",
+        text: "She looks in the mirror. The truth is right there.\nWhen she turns back... Buck has a HUGE hole where his pocket should be. 👖😳"
+      },
+      goodText: "Buck is gently honest. She trusts him more for it.\nThey're better friends now. 💛"
+    },
+    {
+      id: 6,
+      worldX: 4200,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "Leaving the Party",
+      setting: "front door",
+      good: { label: "Say thank you", karma: true },
+      bad: { label: "Just slip out quietly" },
+      consequence: {
+        type: "hole_in_floor",
+        text: "The host didn't get to warn Buck about the hole at the front door.\nBuck falls right in. 🕳️😱"
+      },
+      goodText: "Buck thanks the host.\n\"Oh! Watch the loose board by the door!\"\nBuck steps over it. 🙏"
+    },
+    {
+      id: 7,
+      worldX: 4900,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "A Little Gossip",
+      setting: "break room",
+      good: { label: "Change the subject", karma: true },
+      bad: { label: "Oh, you want to hear something..." },
+      consequence: {
+        type: "hot_mic",
+        text: "THE MIC WAS ON. Everyone heard everything.\nBuck slowly shrinks... and turns really, really ugly. 🎤😬"
+      },
+      goodText: "Buck changes the subject.\nThe gossip dies there. So does a lot of awkwardness. 🤐"
+    },
+    {
+      id: 8,
+      worldX: 5600,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "A Small Lie",
+      setting: "office",
+      good: { label: "Tell the truth", karma: true },
+      bad: { label: "It's a harmless little fib..." },
+      consequence: {
+        type: "cartoon_fight",
+        text: "Buck gets CAUGHT. (Always.)\nCue the dust cloud, the @#$%!, the cartoon brawl...\nBandaged. Black eye. Shirt torn. 🤕"
+      },
+      goodText: "The truth was uncomfortable for about 30 seconds.\nBuck sleeps great that night. 😴"
+    },
+    {
+      id: 9,
+      worldX: 6300,
+      triggered: false,
+      resolved: false,
+      karmaAwarded: false,
+      title: "The Hurt Dog",
+      setting: "roadside",
+      good: { label: "Stop and help the dog", karma: true },
+      bad: { label: "Someone else will get it" },
+      consequence: {
+        type: "hood_ornament",
+        text: "A truck comes speeding down the road.\nBuck becomes its hood ornament. 🚛💨"
+      },
+      goodText: "Buck stops and helps the dog.\nThe dog limps over and licks his hand.\nSome things just feel right. 🐾"
+    }
+  ];
+
+  let currentScenario = null;
+  let consequenceTimer = 0;
+  let consequenceText = '';
+  let consequenceLine2 = '';
+  let choiceAlpha = 0;
+  let goodChoiceParticles = [];
+  let badAnimFrame = 0;
+
+  // ---- BACKGROUND LAYERS ----
+  // Parallax sky, hills, ground
+  const clouds = [];
+  for (let i = 0; i < 8; i++) {
+    clouds.push({
+      x: Math.random() * 3000,
+      y: 40 + Math.random() * 100,
+      w: 80 + Math.random() * 120,
+      speed: 0.2 + Math.random() * 0.3
+    });
+  }
+
+  // ---- BUILDINGS / SCENE MARKERS ----
+  const buildings = [
+    { x: 500, label: "Coffee Shop", color: '#8B4513', w: 120, h: 160 },
+    { x: 1200, label: "Office", color: '#4682B4', w: 140, h: 180 },
+    { x: 1900, label: "Neighborhood", color: '#228B22', w: 100, h: 140 },
+    { x: 2600, label: "Hallway", color: '#9370DB', w: 80, h: 130 },
+    { x: 3300, label: "Coffee Shop", color: '#8B4513', w: 120, h: 160 },
+    { x: 4000, label: "Front Door", color: '#CD853F', w: 90, h: 150 },
+    { x: 4700, label: "Break Room", color: '#20B2AA', w: 110, h: 145 },
+    { x: 5400, label: "Office", color: '#4682B4', w: 140, h: 180 },
+    { x: 6100, label: "Roadside", color: '#556B2F', w: 160, h: 100 },
+  ];
+
+  // ---- SCENARIO MARKERS (choice trigger zones) ----
+  // Visual "!" markers at scenario x positions
+  function getScenarioAtX(worldX) {
+    return scenarios.find(s => !s.resolved && Math.abs(worldX - s.worldX) < 30);
+  }
+
+  // ---- COLORS ----
+  const SKY_TOP = '#87CEEB';
+  const SKY_BOTTOM = '#E0F0FF';
+  const GROUND_COLOR = '#5A8A3C';
+  const GROUND_DARK = '#3D6B26';
+  const PATH_COLOR = '#C8A96E';
+
+  // ---- INPUT ----
+  const keys = {};
+  document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (gameState === STATE.INTRO && introPhase >= 3) {
+      startGame();
+    }
+  });
+  document.addEventListener('keyup', e => { keys[e.key] = false; });
+  canvas.addEventListener('click', handleClick);
+
+  // ---- TOUCH CONTROLS ----
+  // Scale mouse coords to canvas logical size (800x500)
+  function getCanvasCoords(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = 800 / rect.width;
+    const scaleY = 500 / rect.height;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  // Touch on canvas itself — treat as click with scaled coords
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const coords = getCanvasCoords(touch.clientX, touch.clientY);
+    handleTouchAction(coords.x, coords.y);
+  }, { passive: false });
+
+  function handleTouchAction(mx, my) {
+    if (gameState === STATE.INTRO && introPhase >= 3) { startGame(); return; }
+    if (gameState === STATE.CHOICE && currentScenario) { checkChoiceClick(mx, my); return; }
+    if (gameState === STATE.CONSEQUENCE_BAD && consequenceTimer > 90) { resetAfterBad(); return; }
+    if (gameState === STATE.SECOND_CHANCE && consequenceTimer > 60) { handleSecondChanceClick(mx, my); return; }
+    if (gameState === STATE.CONSEQUENCE_GOOD && consequenceTimer > 60) { continueAfterGood(); return; }
+  }
+
+  // Fix handleClick to also use scaled coords
+  canvas.removeEventListener('click', handleClick);
+  canvas.addEventListener('click', e => {
+    const coords = getCanvasCoords(e.clientX, e.clientY);
+    handleTouchAction(coords.x, coords.y);
+  });
+
+  // D-pad buttons — left/right movement
+  function setupDpadBtn(id, keyName) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('touchstart', e => {
+      e.preventDefault(); e.stopPropagation();
+      keys[keyName] = true;
+      btn.classList.add('pressed');
+    }, { passive: false });
+    btn.addEventListener('touchend', e => {
+      e.preventDefault(); e.stopPropagation();
+      keys[keyName] = false;
+      btn.classList.remove('pressed');
+    }, { passive: false });
+    btn.addEventListener('touchcancel', e => {
+      keys[keyName] = false;
+      btn.classList.remove('pressed');
+    });
+    // Mouse fallback for testing on desktop
+    btn.addEventListener('mousedown', () => { keys[keyName] = true; btn.classList.add('pressed'); });
+    btn.addEventListener('mouseup', () => { keys[keyName] = false; btn.classList.remove('pressed'); });
+    btn.addEventListener('mouseleave', () => { keys[keyName] = false; btn.classList.remove('pressed'); });
+  }
+
+  setupDpadBtn('btn-left', 'ArrowLeft');
+  setupDpadBtn('btn-right', 'ArrowRight');
+
+  // Action button — tap to confirm/advance screens
+  const actionBtn = document.getElementById('btn-action');
+  if (actionBtn) {
+    actionBtn.addEventListener('touchstart', e => {
+      e.preventDefault(); e.stopPropagation();
+      actionBtn.classList.add('pressed');
+      handleTouchAction(400, 340); // center of canvas — hits most clickable areas
+    }, { passive: false });
+    actionBtn.addEventListener('touchend', e => {
+      e.preventDefault();
+      actionBtn.classList.remove('pressed');
+    }, { passive: false });
+    actionBtn.addEventListener('mousedown', () => { handleTouchAction(400, 340); });
+  }
+
+  function handleClick(e) {
+    if (gameState === STATE.INTRO && introPhase >= 3) {
+      startGame();
+      return;
+    }
+    if (gameState === STATE.CHOICE && currentScenario) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      checkChoiceClick(mx, my);
+    }
+    if (gameState === STATE.CONSEQUENCE_BAD && consequenceTimer > 90) {
+      resetAfterBad();
+    }
+    if (gameState === STATE.SECOND_CHANCE && consequenceTimer > 60) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      handleSecondChanceClick(mx, my);
+    }
+    if (gameState === STATE.CONSEQUENCE_GOOD && consequenceTimer > 60) {
+      continueAfterGood();
+    }
+  }
+
+  function startGame() {
+    gameState = STATE.WALKING;
+    setTimeout(() => { try { startWalkMusic(); } catch(e){} }, 100);
+  }
+
+  // ---- CHOICE BUTTONS ----
+  const btnGood = { x: 200, y: 310, w: 180, h: 50 };
+  const btnBad = { x: 420, y: 310, w: 180, h: 50 };
+
+  function checkChoiceClick(mx, my) {
+    if (mx >= btnGood.x && mx <= btnGood.x + btnGood.w && my >= btnGood.y && my <= btnGood.y + btnGood.h) {
+      makeChoice(true);
+    } else if (mx >= btnBad.x && mx <= btnBad.x + btnBad.w && my >= btnBad.y && my <= btnBad.y + btnBad.h) {
+      makeChoice(false);
+    }
+  }
+
+  // Second chance uses same buttons, wired through handleClick's SECOND_CHANCE state
+  function handleSecondChanceClick(mx, my) {
+    const g = { x: 200, y: 285, w: 180, h: 50 };
+    const b = { x: 420, y: 285, w: 180, h: 50 };
+    if (mx >= g.x && mx <= g.x + g.w && my >= g.y && my <= g.y + g.h) {
+      makeChoice(true);
+    } else if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+      makeChoice(false);
+    }
+  }
+
+  function makeChoice(good) {
+    stopThinkMusic();
+    if (good) {
+      buck.karma++;
+      currentScenario.karmaAwarded = true;
+      sfxGoodChoice();
+      gameState = STATE.CONSEQUENCE_GOOD;
+      consequenceText = currentScenario.goodText;
+      consequenceTimer = 0;
+      scenarioFailedOnce = false;
+      worldDarkness = Math.max(0, worldDarkness - 0.08); // good choice lightens world
+    } else {
+      gameState = STATE.CONSEQUENCE_BAD;
+      consequenceText = currentScenario.consequence.text;
+      consequenceTimer = 0;
+      badAnimFrame = 0;
+      sfxBadChoice();
+      fadeWalkMusic(0.0, 0.3);
+      worldDarkness = Math.min(0.62, worldDarkness + 0.12); // bad choice darkens world
+    }
+  }
+
+  function resetAfterBad() {
+    if (!scenarioFailedOnce) {
+      // First bad choice — give Buck one second chance
+      scenarioFailedOnce = true;
+      gameState = STATE.SECOND_CHANCE;
+      consequenceTimer = 0;
+      setTimeout(() => { try { sfxSecondChance(); } catch(e){} }, 200);
+    } else {
+      // Second bad choice — full restart, all the way back to the beginning
+      scenarioFailedOnce = false;
+      currentScenario.triggered = false;
+      currentScenario.resolved = false;
+      currentScenario = null;
+      scenarios.forEach(s => { s.triggered = false; s.resolved = false; s.karmaAwarded = false; });
+      worldDarkness = 0;
+      stopThinkMusic();
+      buck.karma = 0;
+      buck.x = 120;
+      buck.y = GROUND_Y - 60;
+      scrollX = 0;
+      gameState = STATE.WALKING;
+      fadeWalkMusic(0.22, 1.0);
+    }
+  }
+
+  function continueAfterGood() {
+    currentScenario.resolved = true;
+    currentScenario = null;
+    scenarioFailedOnce = false;
+    gameState = STATE.WALKING;
+    fadeWalkMusic(0.22, 0.8);
+    checkWin();
+  }
+
+  function continueAfterSecondChance() {
+    gameState = STATE.CHOICE;
+    consequenceTimer = 0;
+    setTimeout(startThinkMusic, 350);
+  }
+
+  function checkWin() {
+    if (scenarios.every(s => s.resolved)) {
+      gameState = STATE.WIN;
+      fadeWalkMusic(0.0, 0.5);
+      setTimeout(() => { try { sfxWin(); } catch(e){} }, 300);
+    }
+  }
+
+  // ---- PARTICLES ----
+  function spawnGoodParticles() {
+    for (let i = 0; i < 20; i++) {
+      goodChoiceParticles.push({
+        x: 400,
+        y: 250,
+        vx: (Math.random() - 0.5) * 6,
+        vy: -Math.random() * 5 - 2,
+        life: 60,
+        color: ['#FFD700', '#FF69B4', '#00FF7F', '#87CEEB'][Math.floor(Math.random() * 4)],
+        size: 4 + Math.random() * 6
+      });
+    }
+  }
+
+  // ---- DRAW FUNCTIONS ----
+
+  function getCurrentSetting() {
+    if (currentScenario) return currentScenario.setting;
+    // Find nearest upcoming scenario based on scrollX
+    const worldX = buck.x + scrollX;
+    let nearest = scenarios.find(s => !s.resolved && s.worldX > worldX);
+    if (!nearest) nearest = scenarios[scenarios.length - 1];
+    return nearest ? nearest.setting : 'default';
+  }
+
+  function drawSky(setting) {
+    // Sky color changes per scene setting
+    const skies = {
+      coffee_shop:  ['#6AABE0','#C8E8F5'],
+      office:       ['#4A6080','#8AA0B8'],
+      neighborhood: ['#5A9FD4','#B8DDF0'],
+      hallway:      ['#5060A0','#9090C0'],
+      party:        ['#2A1A4A','#6A3A8A'],
+      breakroom:    ['#3A4A3A','#7A8A7A'],
+      roadside:     ['#7AB0D0','#D0E8F0'],
+      default:      ['#6AABE0','#C8E8F5']
+    };
+    const s = setting || 'default';
+    const [top, bot] = skies[s] || skies.default;
+    const grad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    grad.addColorStop(0, top);
+    grad.addColorStop(1, bot);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 800, GROUND_Y);
+
+    // Scene-specific background details
+    if (s === 'coffee_shop') {
+      // Warm brick building suggestion in bg
+      ctx.fillStyle = 'rgba(139,69,19,0.15)';
+      ctx.fillRect(0, 100, 800, 300);
+      // Awning stripes
+      for (let ax = 0; ax < 800; ax += 60) {
+        ctx.fillStyle = 'rgba(180,60,60,0.12)';
+        ctx.fillRect(ax, 160, 30, 240);
+      }
+    } else if (s === 'office') {
+      // Glass building reflection grid
+      for (let gx = 0; gx < 800; gx += 45) {
+        ctx.fillStyle = 'rgba(100,140,200,0.08)';
+        ctx.fillRect(gx, 0, 22, GROUND_Y);
+      }
+      for (let gy = 0; gy < GROUND_Y; gy += 35) {
+        ctx.fillStyle = 'rgba(100,140,200,0.06)';
+        ctx.fillRect(0, gy, 800, 15);
+      }
+    } else if (s === 'neighborhood') {
+      // Picket fence suggestion
+      for (let fx = -((scrollX * 0.5) % 40); fx < 800; fx += 40) {
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(fx, GROUND_Y - 80, 8, 80);
+        ctx.fillRect(fx - 4, GROUND_Y - 90, 16, 12);
+      }
+    } else if (s === 'hallway') {
+      // Corridor lines
+      ctx.strokeStyle = 'rgba(180,160,220,0.15)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, i * 60 + 20);
+        ctx.lineTo(800, i * 60 + 20);
+        ctx.stroke();
+      }
+      // Ceiling lights
+      for (let lx = 100; lx < 800; lx += 200) {
+        const lsx = lx - (scrollX % 200);
+        ctx.fillStyle = 'rgba(255,255,200,0.2)';
+        ctx.fillRect(lsx - 30, 0, 60, 8);
+        ctx.fillStyle = 'rgba(255,255,200,0.08)';
+        ctx.beginPath();
+        ctx.ellipse(lsx, 40, 50, 40, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+    } else if (s === 'party') {
+      // Party lights strung across
+      for (let px = 0; px < 800; px += 40) {
+        const lightColors = ['#FF6B9D','#FFD700','#7FFF00','#00BFFF','#FF6B6B'];
+        ctx.fillStyle = lightColors[Math.floor(px/40) % lightColors.length];
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now()*0.005 + px);
+        ctx.beginPath();
+        ctx.arc(px, 30 + Math.sin(px * 0.05) * 15, 6, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let px = 0; px < 800; px += 40) {
+        ctx.lineTo(px, 30 + Math.sin(px * 0.05) * 15);
+      }
+      ctx.stroke();
+    } else if (s === 'breakroom') {
+      // Fluorescent flicker
+      const flicker = 0.85 + 0.15 * Math.sin(Date.now() * 0.02);
+      ctx.fillStyle = `rgba(200,220,180,${flicker * 0.08})`;
+      ctx.fillRect(0, 0, 800, GROUND_Y);
+      // Break room notice board suggestion
+      ctx.fillStyle = 'rgba(180,140,60,0.15)';
+      ctx.fillRect(550, 80, 180, 140);
+    } else if (s === 'roadside') {
+      // Road markings
+      ctx.setLineDash([40, 30]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND_Y + 18);
+      ctx.lineTo(800, GROUND_Y + 18);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Power lines
+      ctx.strokeStyle = 'rgba(50,50,50,0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 80); ctx.lineTo(800, 100);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, 100); ctx.lineTo(800, 120);
+      ctx.stroke();
+    }
+  }
+
+  function drawClouds() {
+    clouds.forEach(c => {
+      const cx = ((c.x - scrollX * 0.3) % (WORLD_WIDTH + 300) + (WORLD_WIDTH + 300)) % (WORLD_WIDTH + 300) - 150;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      ctx.ellipse(cx, c.y, c.w / 2, 22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx - 25, c.y + 8, c.w / 3, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 30, c.y + 5, c.w / 3.5, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function drawGround() {
+    // Far ground
+    ctx.fillStyle = '#8FBC5A';
+    ctx.fillRect(0, GROUND_Y - 20, 800, 20);
+    // Main ground
+    ctx.fillStyle = GROUND_COLOR;
+    ctx.fillRect(0, GROUND_Y, 800, 100);
+    // Path / sidewalk
+    ctx.fillStyle = PATH_COLOR;
+    ctx.fillRect(0, GROUND_Y + 5, 800, 35);
+    // Path line dashes
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.setLineDash([30, 20]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y + 22);
+    ctx.lineTo(800, GROUND_Y + 22);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawBuildings() {
+    buildings.forEach(b => {
+      const bx = b.x - scrollX;
+      if (bx < -200 || bx > 1000) return;
+      // Building body
+      ctx.fillStyle = b.color;
+      ctx.fillRect(bx, GROUND_Y - b.h, b.w, b.h);
+      // Windows
+      ctx.fillStyle = 'rgba(255,255,200,0.7)';
+      for (let wx = bx + 15; wx < bx + b.w - 15; wx += 25) {
+        for (let wy = GROUND_Y - b.h + 15; wy < GROUND_Y - 20; wy += 30) {
+          ctx.fillRect(wx, wy, 14, 18);
+        }
+      }
+      // Door
+      ctx.fillStyle = '#5C3A1A';
+      ctx.fillRect(bx + b.w / 2 - 12, GROUND_Y - 45, 24, 45);
+      // Label
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.label, bx + b.w / 2, GROUND_Y - b.h - 8);
+    });
+  }
+
+  function drawScenarioMarkers() {
+    scenarios.forEach(s => {
+      if (s.resolved) return;
+      const mx = s.worldX - scrollX;
+      if (mx < -50 || mx > 850) return;
+      // Exclamation marker
+      const pulse = 0.8 + 0.2 * Math.sin(Date.now() * 0.005);
+      ctx.fillStyle = `rgba(255, 220, 0, ${pulse})`;
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('!', mx, GROUND_Y - 80);
+      // Small label
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(s.title, mx, GROUND_Y - 55);
+    });
+  }
+
+  // ---- BUCK ART: 3D shaded sprite ----
+  function drawBuckSprite(cx, groundY, walkFrame, isWalking, facing, expression, scale) {
+    scale = scale || 1;
+    const t = walkFrame;
+    const legSwing = isWalking ? Math.sin(t * 0.28) * 14 : 0;
+    const armSwing = isWalking ? Math.sin(t * 0.28) * 16 : 0;
+    const bodyBob = isWalking ? Math.abs(Math.sin(t * 0.28)) * 2 : 0;
+
+    ctx.save();
+    ctx.translate(cx, groundY);
+    ctx.scale(scale * facing, scale);
+    ctx.translate(0, -bodyBob);
+
+    // ---- helpers for 3D shading ----
+    function sphere3d(x, y, r, baseColor, lightAngle) {
+      const la = lightAngle || -0.8;
+      const lx = Math.cos(la) * r * 0.4;
+      const ly = Math.sin(la) * r * 0.4;
+      const g = ctx.createRadialGradient(x+lx, y+ly, r*0.05, x, y, r);
+      g.addColorStop(0, lighten(baseColor, 60));
+      g.addColorStop(0.4, baseColor);
+      g.addColorStop(1, darken(baseColor, 50));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+      // specular
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.beginPath(); ctx.arc(x+lx*0.6, y+ly*0.6, r*0.28, 0, Math.PI*2); ctx.fill();
+    }
+
+    function tube3d(x1, y1, x2, y2, r, baseColor) {
+      const dx = x2-x1, dy = y2-y1;
+      const len = Math.sqrt(dx*dx+dy*dy);
+      const nx = -dy/len, ny = dx/len;
+      const g = ctx.createLinearGradient(x1+nx*r, y1+ny*r, x1-nx*r, y1-ny*r);
+      g.addColorStop(0, lighten(baseColor, 40));
+      g.addColorStop(0.35, baseColor);
+      g.addColorStop(0.7, baseColor);
+      g.addColorStop(1, darken(baseColor, 45));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x1+nx*r, y1+ny*r);
+      ctx.lineTo(x2+nx*r, y2+ny*r);
+      ctx.arc(x2, y2, r, Math.atan2(ny,nx), Math.atan2(-ny,-nx));
+      ctx.lineTo(x1-nx*r, y1-ny*r);
+      ctx.arc(x1, y1, r, Math.atan2(-ny,-nx), Math.atan2(ny,nx));
+      ctx.closePath(); ctx.fill();
+      // highlight stripe
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.beginPath();
+      ctx.moveTo(x1+nx*r*0.45, y1+ny*r*0.45);
+      ctx.lineTo(x2+nx*r*0.45, y2+ny*r*0.45);
+      ctx.arc(x2, y2, r*0.42, Math.atan2(ny,nx)-0.3, Math.atan2(ny,nx)+0.3);
+      ctx.lineTo(x1+nx*r*0.45, y1+ny*r*0.45);
+      ctx.closePath(); ctx.fill();
+    }
+
+    function lighten(hex, amt) {
+      let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+      return `rgb(${Math.min(255,r+amt)},${Math.min(255,g+amt)},${Math.min(255,b+amt)})`;
+    }
+    function darken(hex, amt) {
+      let r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+      return `rgb(${Math.max(0,r-amt)},${Math.max(0,g-amt)},${Math.max(0,b-amt)})`;
+    }
+
+    // ---- SHADOW ----
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(0, 2, 24, 7, 0, 0, Math.PI*2); ctx.fill();
+
+    // ---- BACK ARM ----
+    ctx.save();
+    ctx.translate(-10, -44);
+    ctx.rotate((-armSwing * Math.PI) / 180);
+    tube3d(0, 0, 0, 22, 6, '#2A5AB8');
+    sphere3d(0, 24, 5.5, '#E8B090');
+    ctx.restore();
+
+    // ---- BACK LEG ----
+    ctx.save();
+    ctx.translate(9, -20);
+    ctx.rotate((-legSwing * Math.PI) / 180);
+    tube3d(0, 0, 0, 28, 7, '#1E3A70');
+    // Boot
+    const bg1 = ctx.createRadialGradient(-2, 26, 1, 0, 28, 10);
+    bg1.addColorStop(0, '#4A2A10'); bg1.addColorStop(1, '#1A0A00');
+    ctx.fillStyle = bg1;
+    ctx.beginPath(); ctx.ellipse(2, 30, 10, 6, 0.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.ellipse(0, 28, 6, 3, 0.2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // ---- BODY ----
+    // Torso — rounded box with 3D gradient
+    const bodyG = ctx.createLinearGradient(-18, -58, 18, -58);
+    bodyG.addColorStop(0, '#6A9AEE');
+    bodyG.addColorStop(0.3, '#4A80E0');
+    bodyG.addColorStop(0.7, '#3A6BC7');
+    bodyG.addColorStop(1, '#2050A0');
+    ctx.fillStyle = bodyG;
+    ctx.beginPath(); ctx.roundRect(-17, -58, 34, 42, 6); ctx.fill();
+    // Body highlight
+    const bodyHL = ctx.createLinearGradient(-10, -58, -10, -38);
+    bodyHL.addColorStop(0, 'rgba(255,255,255,0.25)');
+    bodyHL.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = bodyHL;
+    ctx.beginPath(); ctx.roundRect(-10, -58, 20, 20, 4); ctx.fill();
+
+    // Vest panels with leather sheen
+    function vestPanel(x, w) {
+      const vg = ctx.createLinearGradient(x, -56, x+w, -20);
+      vg.addColorStop(0, '#A87830');
+      vg.addColorStop(0.4, '#8B6020');
+      vg.addColorStop(1, '#5A3A0A');
+      ctx.fillStyle = vg;
+      ctx.beginPath(); ctx.roundRect(x, -56, w, 38, 4); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.beginPath(); ctx.roundRect(x+2, -54, w-4, 10, 3); ctx.fill();
+    }
+    vestPanel(-14, 13);
+    vestPanel(1, 13);
+
+    // Vest buttons
+    for (let b = 0; b < 3; b++) {
+      sphere3d(0, -48 + b * 11, 2.5, '#D4AA00');
+    }
+
+    // Belt
+    const beltG = ctx.createLinearGradient(-17, -18, -17, -12);
+    beltG.addColorStop(0, '#7A4A20'); beltG.addColorStop(1, '#4A2A08');
+    ctx.fillStyle = beltG;
+    ctx.beginPath(); ctx.roundRect(-17, -18, 34, 7, 2); ctx.fill();
+    // Buckle
+    const buckleG = ctx.createRadialGradient(-1, -15, 1, 0, -15, 5);
+    buckleG.addColorStop(0, '#FFE840'); buckleG.addColorStop(1, '#AA8000');
+    ctx.fillStyle = buckleG;
+    ctx.beginPath(); ctx.roundRect(-5, -18, 10, 7, 1); ctx.fill();
+
+    // ---- FRONT LEG ----
+    ctx.save();
+    ctx.translate(-9, -20);
+    ctx.rotate((legSwing * Math.PI) / 180);
+    tube3d(0, 0, 0, 28, 7, '#2B4A8A');
+    const fg = ctx.createRadialGradient(-2, 26, 1, 0, 28, 10);
+    fg.addColorStop(0, '#4A2A10'); fg.addColorStop(1, '#1A0A00');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.ellipse(2, 30, 10, 6, -0.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.ellipse(0, 28, 6, 3, -0.2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // ---- NECK ----
+    tube3d(0, -58, 0, -66, 6, '#E8B090');
+
+    // ---- HEAD ----
+    const headG = ctx.createRadialGradient(-5, -82, 4, 0, -76, 20);
+    headG.addColorStop(0, '#FDDAB8');
+    headG.addColorStop(0.5, '#F4C2A1');
+    headG.addColorStop(1, '#C8845A');
+    ctx.fillStyle = headG;
+    ctx.beginPath();
+    ctx.ellipse(0, -78, 17, 16, 0, 0, Math.PI*2);
+    ctx.fill();
+    // Head side shading
+    ctx.fillStyle = 'rgba(180,100,60,0.25)';
+    ctx.beginPath(); ctx.ellipse(-14, -78, 5, 12, 0, 0, Math.PI*2); ctx.fill();
+    // Head highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath(); ctx.ellipse(-5, -85, 7, 5, -0.4, 0, Math.PI*2); ctx.fill();
+    // Ear
+    sphere3d(-17, -78, 5, '#E0A880');
+    // Ear canal
+    ctx.fillStyle = 'rgba(180,100,60,0.4)';
+    ctx.beginPath(); ctx.arc(-17, -78, 2.5, 0, Math.PI*2); ctx.fill();
+
+    // ---- FACE ----
+    // Nose (little 3D bump)
+    sphere3d(0, -74, 3.5, '#E0A078', -0.5);
+
+    if (expression === 'happy' || expression === 'normal' || !expression) {
+      // Eyes — iris + pupil + highlight
+      [[-7,0],[7,0]].forEach(([ex,ey]) => {
+        ctx.fillStyle = '#4A8A40'; // green iris
+        ctx.beginPath(); ctx.arc(ex, -80+ey, 4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#1A0A00';
+        ctx.beginPath(); ctx.arc(ex+0.5, -80+ey, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.beginPath(); ctx.arc(ex+1, -81.5+ey, 1.2, 0, Math.PI*2); ctx.fill();
+      });
+      // Cheeks
+      ctx.fillStyle = 'rgba(240,150,120,0.3)';
+      ctx.beginPath(); ctx.ellipse(-11, -73, 5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(11, -73, 5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+      // Smile
+      ctx.strokeStyle = '#8A4020'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, -70, 8, 0.15, Math.PI-0.15); ctx.stroke();
+      // Brows
+      ctx.strokeStyle = '#6A3810'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-12, -86); ctx.quadraticCurveTo(-7, -88, -3, -86); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(3, -86); ctx.quadraticCurveTo(7, -88, 12, -86); ctx.stroke();
+
+    } else if (expression === 'shocked') {
+      [[-7,0],[7,0]].forEach(([ex]) => {
+        ctx.fillStyle = '#4A8A40';
+        ctx.beginPath(); ctx.arc(ex, -80, 5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#1A0A00';
+        ctx.beginPath(); ctx.arc(ex+0.5, -80, 3.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.beginPath(); ctx.arc(ex+1.5, -81.5, 1.5, 0, Math.PI*2); ctx.fill();
+      });
+      // O mouth
+      ctx.fillStyle = '#5A1A00';
+      ctx.beginPath(); ctx.ellipse(0, -69, 5, 6, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.beginPath(); ctx.ellipse(-1, -71, 2, 2, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#6A3810'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-12, -89); ctx.quadraticCurveTo(-7, -92, -3, -89); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(3, -89); ctx.quadraticCurveTo(7, -92, 12, -89); ctx.stroke();
+
+    } else if (expression === 'dizzy') {
+      // X eyes with irises
+      [[-7,0],[7,0]].forEach(([ex]) => {
+        ctx.fillStyle = '#4A8A40';
+        ctx.beginPath(); ctx.arc(ex, -80, 4, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#1A0A00'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(ex-3,-83); ctx.lineTo(ex+3,-77); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ex+3,-83); ctx.lineTo(ex-3,-77); ctx.stroke();
+      });
+      ctx.strokeStyle = '#8A4020'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-8,-69); ctx.bezierCurveTo(-5,-73,0,-66,4,-70); ctx.bezierCurveTo(6,-72,8,-67,9,-70);
+      ctx.stroke();
+      // Dizzy stars
+      ctx.fillStyle = '#FFD700'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('★', -20, -96); ctx.fillText('★', 20, -93);
+
+    } else if (expression === 'embarrassed') {
+      [[-7,0],[7,0]].forEach(([ex]) => {
+        ctx.fillStyle = '#4A8A40';
+        ctx.beginPath(); ctx.arc(ex, -80, 3.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#1A0A00';
+        ctx.beginPath(); ctx.arc(ex+0.5, -80, 2, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.beginPath(); ctx.arc(ex+1, -81, 1, 0, Math.PI*2); ctx.fill();
+      });
+      // Downward mouth
+      ctx.strokeStyle = '#8A4020'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, -64, 7, Math.PI+0.2, -0.2); ctx.stroke();
+      // Deep blush
+      ctx.fillStyle = 'rgba(255,100,100,0.5)';
+      ctx.beginPath(); ctx.ellipse(-12, -72, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(12, -72, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+      // Sweat drop
+      ctx.fillStyle = '#88CCFF';
+      ctx.beginPath(); ctx.arc(16, -88, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(14, -88); ctx.lineTo(16, -93); ctx.lineTo(18, -88); ctx.fill();
+
+    } else if (expression === 'angry') {
+      [[-7,0],[7,0]].forEach(([ex]) => {
+        ctx.fillStyle = '#8A2020';
+        ctx.beginPath(); ctx.arc(ex, -80, 4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#1A0A00';
+        ctx.beginPath(); ctx.arc(ex+0.5, -80, 2.5, 0, Math.PI*2); ctx.fill();
+      });
+      ctx.strokeStyle = '#3A1000'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-13,-88); ctx.lineTo(-3,-83); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(13,-88); ctx.lineTo(3,-83); ctx.stroke();
+      ctx.strokeStyle = '#8A4020'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, -64, 7, Math.PI+0.15, -0.15); ctx.stroke();
+      // Vein
+      ctx.strokeStyle = 'rgba(220,50,50,0.7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-16,-72); ctx.lineTo(-12,-68); ctx.lineTo(-16,-65); ctx.stroke();
+    }
+
+    // ---- HAT (3D cowboy hat) ----
+    // Brim — ellipse with 3D shading
+    const brimG = ctx.createRadialGradient(0, -90, 2, 0, -90, 24);
+    brimG.addColorStop(0, '#A05A20');
+    brimG.addColorStop(0.5, '#7A3E0E');
+    brimG.addColorStop(1, '#4A2008');
+    ctx.fillStyle = brimG;
+    ctx.beginPath(); ctx.ellipse(0, -90, 24, 6, 0, 0, Math.PI*2); ctx.fill();
+    // Brim highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.ellipse(-5, -91, 12, 2.5, -0.2, 0, Math.PI*2); ctx.fill();
+
+    // Crown — 3D with bezier shape
+    const crownG = ctx.createLinearGradient(-14, -120, 14, -90);
+    crownG.addColorStop(0, '#B06030');
+    crownG.addColorStop(0.4, '#8B4514');
+    crownG.addColorStop(1, '#4A1E05');
+    ctx.fillStyle = crownG;
+    ctx.beginPath();
+    ctx.moveTo(-14, -91);
+    ctx.bezierCurveTo(-16, -108, -10, -122, 0, -123);
+    ctx.bezierCurveTo(10, -122, 16, -108, 14, -91);
+    ctx.closePath();
+    ctx.fill();
+    // Crown highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(-8, -94);
+    ctx.bezierCurveTo(-10, -108, -4, -120, 0, -121);
+    ctx.bezierCurveTo(2, -119, 0, -108, -3, -95);
+    ctx.closePath(); ctx.fill();
+
+    // Hat band
+    const bandG = ctx.createLinearGradient(-14,-97,14,-97);
+    bandG.addColorStop(0,'#2A0E02'); bandG.addColorStop(0.5,'#4A1E05'); bandG.addColorStop(1,'#1A0800');
+    ctx.fillStyle = bandG;
+    ctx.beginPath(); ctx.roundRect(-14, -98, 28, 7, 1); ctx.fill();
+    // Hat pin / star on band
+    sphere3d(8, -95, 3, '#D4AA00');
+
+    // Crown dent highlight
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(-5,-118); ctx.bezierCurveTo(-3,-122, 3,-122, 5,-118);
+    ctx.bezierCurveTo(3,-115,-3,-115,-5,-118);
+    ctx.fill();
+
+    // ---- FRONT ARM ----
+    ctx.save();
+    ctx.translate(10, -44);
+    ctx.rotate((armSwing * Math.PI) / 180);
+    tube3d(0, 0, 0, 22, 6, '#3A6BC7');
+    sphere3d(0, 24, 5.5, '#E8B090');
+    ctx.restore();
+
+    ctx.restore();
+  }
+  function drawBuck() {
+    const isWalking = buck.walking;
+    const expression = 'happy';
+    drawBuckSprite(
+      buck.x + buck.width / 2,
+      buck.y + buck.height,
+      buck.walkFrame,
+      isWalking,
+      buck.facing,
+      expression,
+      1
+    );
+  }
+
+  function drawKarmaBar() {
+    const goodCount = buck.karma;
+    const total = scenarios.length;
+    const resolved = scenarios.filter(s => s.resolved).length;
+
+    // --- HUD background panel ---
+    ctx.fillStyle = 'rgba(0,0,0,0.52)';
+    ctx.beginPath(); ctx.roundRect(12, 10, 776, 48, 10); ctx.fill();
+
+    // --- Left: scenario progress dots ---
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText("Buck's Day:", 22, 28);
+    scenarios.forEach((s, i) => {
+      const dotX = 100 + i * 34;
+      const dotY = 24;
+      if (s.resolved) {
+        // completed - green star if good karma, red X if bad
+        const wasGood = s.karmaAwarded;
+        ctx.fillStyle = wasGood ? '#7FFF00' : '#FF6B6B';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(wasGood ? '★' : '✗', dotX, dotY + 10);
+      } else if (s === currentScenario || (!s.resolved && scenarios.slice(0,i).every(p => p.resolved))) {
+        // current - pulsing gold
+        const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.006);
+        ctx.fillStyle = `rgba(255, 215, 0, ${pulse})`;
+        ctx.beginPath(); ctx.arc(dotX, dotY + 6, 7, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#1A0A2E';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(i+1, dotX, dotY + 10);
+      } else {
+        // upcoming - dim circle
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath(); ctx.arc(dotX, dotY + 6, 6, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(i+1, dotX, dotY + 10);
+      }
+    });
+
+    // --- Right: karma score ---
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('Good calls:', 680, 28);
+    for (let i = 0; i < total; i++) {
+      const sx = 692 + i * 18;
+      ctx.fillStyle = i < goodCount ? '#FFD700' : 'rgba(255,255,255,0.15)';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('★', sx, 38);
+    }
+
+    // --- Current scenario label (centered, subtle) ---
+    if (currentScenario && (gameState === 'choice' || gameState === 'second_chance')) {
+      ctx.fillStyle = '#FFD700';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Scenario ${currentScenario.id} of ${total}: ${currentScenario.title}`, 400, 50);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  // ---- INTRO SCREEN ----
+  function drawIntro(dt) {
+    introTimer += dt;
+    introWalkFrame++;
+
+    drawSky('default');
+    drawClouds();
+    drawGround();
+
+    if (introTimer < 120) introWalkX = Math.min(260, introWalkX + 3.5);
+
+    // Spotlight on Buck
+    const spotAlpha = Math.min(0.85, introTimer / 60);
+    const spotGrad = ctx.createRadialGradient(introWalkX, GROUND_Y - 40, 10, introWalkX, GROUND_Y - 40, 140);
+    spotGrad.addColorStop(0, `rgba(255,240,180,${spotAlpha * 0.35})`);
+    spotGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spotGrad;
+    ctx.fillRect(0, 0, 800, 500);
+
+    // Buck walks onto scene
+    drawBuckSprite(introWalkX, GROUND_Y, introWalkFrame, introTimer < 120, 1, 'happy', 1.4);
+
+    // Dark overlay fades in after Buck enters
+    if (introTimer > 80) {
+      const overlayA = Math.min(0.72, (introTimer - 80) / 80);
+      ctx.fillStyle = `rgba(8, 2, 22, ${overlayA})`;
+      ctx.fillRect(0, 0, 800, 500);
+    }
+
+    // Stars
+    if (introTimer > 80) {
+      const starA = Math.min(1, (introTimer - 80) / 60);
+      for (let i = 0; i < 80; i++) {
+        const sx = (i * 97 + 43) % 800;
+        const sy = (i * 113 + 17) % 260;
+        const blink = 0.3 + 0.7 * Math.sin(Date.now() * 0.001 * (i % 5 + 1) + i);
+        ctx.globalAlpha = blink * starA;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Re-draw Buck on top of overlay
+    if (introTimer > 80) {
+      ctx.globalAlpha = Math.min(1, (introTimer - 80) / 40);
+      drawBuckSprite(introWalkX, GROUND_Y, introWalkFrame, false, 1, 'happy', 1.4);
+      ctx.globalAlpha = 1;
+    }
+
+    // INTRODUCING... BUCK KAIROS
+    if (introTimer > 100) {
+      introPhase = Math.max(introPhase, 1);
+      const a = Math.min(1, (introTimer - 100) / 50);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#F5C842';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('I N T R O D U C I N G . . .', 400, 120);
+      ctx.fillStyle = 'rgba(245,200,66,0.2)';
+      ctx.font = 'bold 68px sans-serif';
+      ctx.fillText('BUCK KAIROS', 403, 193);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText('BUCK KAIROS', 400, 190);
+      ctx.font = 'italic 15px sans-serif';
+      ctx.fillStyle = 'rgba(245,200,66,0.85)';
+      ctx.fillText("He's just trying to get through his day.", 400, 225);
+    }
+
+    // Tagline
+    if (introTimer > 175) {
+      introPhase = Math.max(introPhase, 2);
+      const a = Math.min(1, (introTimer - 175) / 50);
+      ctx.globalAlpha = a;
+      ctx.font = 'bold 38px sans-serif';
+      ctx.fillStyle = '#FF6B6B';
+      ctx.textAlign = 'center';
+      ctx.fillText('Buck the System...', 400, 305);
+      ctx.fillStyle = '#7FFF00';
+      ctx.fillText('or Not?', 400, 352);
+    }
+
+    // Press any key
+    if (introTimer > 250) {
+      introPhase = Math.max(introPhase, 3);
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.004);
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText("Click or press any key to begin Buck's day", 400, 440);
+      ctx.globalAlpha = pulse * 0.6;
+      ctx.font = '11px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillText('"The consequences are his. The choices are yours."', 400, 465);
+    }
+
+    ctx.globalAlpha = 1;
+  }
+  // ---- CHOICE SCREEN ----
+  function drawChoice() {
+    if (!currentScenario) return;
+    // Darken world
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, 800, 500);
+
+    // Panel
+    ctx.fillStyle = '#1A0A2E';
+    ctx.strokeStyle = '#F5C842';
+    ctx.lineWidth = 2;
+    roundRect(ctx, 160, 120, 480, 260, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    // Scenario title
+    ctx.fillStyle = '#F5C842';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(currentScenario.title, 400, 165);
+
+    // Prompt
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '15px sans-serif';
+    ctx.fillText('What does Buck do?', 400, 200);
+
+    // Divider
+    ctx.strokeStyle = 'rgba(245,200,66,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(200, 215);
+    ctx.lineTo(600, 215);
+    ctx.stroke();
+
+    // Good button
+    ctx.fillStyle = '#1A4A2E';
+    ctx.strokeStyle = '#7FFF00';
+    ctx.lineWidth = 2;
+    roundRect(ctx, btnGood.x, btnGood.y, btnGood.w, btnGood.h, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#7FFF00';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    wrapText(ctx, currentScenario.good.label, btnGood.x + btnGood.w / 2, btnGood.y + 22, btnGood.w - 20, 18);
+
+    // Bad button
+    ctx.fillStyle = '#4A1A1A';
+    ctx.strokeStyle = '#FF6B6B';
+    ctx.lineWidth = 2;
+    roundRect(ctx, btnBad.x, btnBad.y, btnBad.w, btnBad.h, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#FF6B6B';
+    ctx.font = 'bold 14px sans-serif';
+    wrapText(ctx, currentScenario.bad.label, btnBad.x + btnBad.w / 2, btnBad.y + 22, btnBad.w - 20, 18);
+
+    // Hint
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('Click your choice', 400, 390);
+  }
+
+  // ---- CONSEQUENCE: BAD ----
+  // Anim state objects for each scenario type
+  let animState = {};
+
+  function initBadAnim(type) {
+    animState = {};
+    // Fire scenario-specific SFX
+    if (scenarioSFX[type]) setTimeout(() => { try { scenarioSFX[type](); } catch(e){} }, 300);
+    if (type === 'boomerang_door') {
+      animState = { doorAngle: 0, buckX: 400, buckY: 340, buckVX: 0, buckVY: 0, latte: [], phase: 0 };
+      for (let i = 0; i < 18; i++) {
+        animState.latte.push({ x: 400, y: 340, vx: (Math.random()-0.5)*9, vy: -Math.random()*8-2, life: 80, size: 4+Math.random()*6 });
+      }
+    } else if (type === 'scrolling_chair') {
+      animState = { phase: 0, buckY: 300, headBounces: 0, bounceTimer: 0, chairScroll: 0 };
+    } else if (type === 'tornado') {
+      animState = { angle: 0, houseShake: 0, roofY: 220, debris: [], neighborAlpha: 0, doorClose: 0 };
+      for (let i = 0; i < 12; i++) {
+        animState.debris.push({ angle: Math.random()*Math.PI*2, r: 30+Math.random()*60, vy: -1-Math.random()*2, life: 120 });
+      }
+    } else if (type === 'bonus_ripped') {
+      animState = { checkX: 400, checkY: 200, ripped: false, ripProgress: 0, pieces: [], secretaryX: 560, secretaryFace: 0 };
+    } else if (type === 'mirror_pants') {
+      animState = { mirrorReveal: 0, friendFace: 0, pantsHole: 0, shockTimer: 0 };
+    } else if (type === 'hole_in_floor') {
+      animState = { buckY: 370, falling: false, holeGlow: 0, buckFallSpeed: 0, warningAlpha: 0 };
+    } else if (type === 'hot_mic') {
+      animState = { micPulse: 0, buckScale: 1, buckUgly: 0, shockwaves: [], textReveal: 0 };
+      for (let i = 0; i < 5; i++) animState.shockwaves.push({ r: i * 30, life: 60 - i*10 });
+    } else if (type === 'cartoon_fight') {
+      animState = { phase: 0, cloudX: 400, cloudY: 300, cloudR: 0, symbols: [], bandaged: false, buckX: 350, foeX: 450 };
+      const syms = ['@', '#', '$', '%', '!', '*'];
+      for (let i = 0; i < 6; i++) animState.symbols.push({ char: syms[i], x: 370+Math.random()*60, y: 260+Math.random()*60, life: 40+Math.random()*40, angle: (Math.random()-0.5)*0.8 });
+    } else if (type === 'hood_ornament') {
+      animState = { truckX: -180, buckX: 400, buckY: 340, attached: false, dogX: 380, speed: 3 };
+    }
+  }
+
+  function drawConsequenceBad(dt) {
+    consequenceTimer++;
+    if (consequenceTimer === 1 && currentScenario) {
+      initBadAnim(currentScenario.consequence.type);
+    }
+
+    const type = currentScenario ? currentScenario.consequence.type : '';
+    const t = consequenceTimer;
+
+    // Draw appropriate animation
+    if (type === 'boomerang_door') animBoomerangDoor(t);
+    else if (type === 'scrolling_chair') animScrollingChair(t);
+    else if (type === 'tornado') animTornado(t);
+    else if (type === 'bonus_ripped') animBonusRipped(t);
+    else if (type === 'mirror_pants') animMirrorPants(t);
+    else if (type === 'hole_in_floor') animHoleInFloor(t);
+    else if (type === 'hot_mic') animHotMic(t);
+    else if (type === 'cartoon_fight') animCartoonFight(t);
+    else if (type === 'hood_ornament') animHoodOrnament(t);
+
+    // Universal: consequence text box after animation settles
+    if (t > 80) {
+      const a = Math.min(1, (t - 80) / 30);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = 'rgba(15,0,0,0.90)';
+      ctx.strokeStyle = '#FF4444';
+      ctx.lineWidth = 2;
+      roundRect(ctx, 130, 340, 540, 115, 14);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#FF6B6B';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('WRONG CALL, BUCK!', 400, 365);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '13px sans-serif';
+      const lines = currentScenario.consequence.text.split('\n');
+      lines.forEach((line, i) => ctx.fillText(line, 400, 388 + i * 20));
+      if (t > 140) {
+        const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.006);
+        ctx.globalAlpha = a * pulse;
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('Click to move on...', 400, 445);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // --- ANIMATION 1: Boomerang Door ---
+  function animBoomerangDoor(t) {
+    drawSky(currentScenario ? currentScenario.setting : "default"); drawClouds(); drawGround();
+    const s = animState;
+    // Door swings back
+    if (t < 30) {
+      s.doorAngle = (t / 30) * Math.PI * 1.8;
+    } else if (t === 30) {
+      s.buckVX = 8; s.buckVY = -10; s.phase = 1;
+    }
+    if (s.phase === 1) {
+      s.buckX += s.buckVX; s.buckVY += 0.6; s.buckY += s.buckVY;
+      if (s.buckY > 380) { s.buckY = 380; s.buckVY = 0; s.buckVX = 0; s.phase = 2; }
+    }
+    // Draw door
+    ctx.save();
+    ctx.translate(300, 340);
+    ctx.rotate(Math.min(s.doorAngle, Math.PI * 1.8));
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(0, -120, 50, 120);
+    ctx.fillStyle = '#C0A060';
+    ctx.beginPath(); ctx.arc(45, -60, 5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    // Latte splatter
+    if (t >= 30) {
+      s.latte.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.4; p.life--;
+        if (p.life > 0) {
+          ctx.globalAlpha = Math.max(0, p.life / 80);
+          ctx.fillStyle = '#8B4010';
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        }
+      });
+      ctx.globalAlpha = 1;
+      // Cup
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(s.buckX - 8, s.buckY - 30, 16, 22);
+      ctx.fillStyle = '#8B4010';
+      ctx.fillRect(s.buckX - 6, s.buckY - 28, 12, 8);
+    }
+    // Buck flying
+    drawBuckAt(s.buckX, s.buckY, t > 30, t > 60 ? 'dizzy' : 'shocked');
+    // BONK text
+    if (t > 30 && t < 60) {
+      ctx.fillStyle = '#FF4400';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('BONK!', s.buckX + 60, s.buckY - 20);
+    }
+  }
+
+  // --- ANIMATION 2: Scrolling Chair ---
+  function animScrollingChair(t) {
+    // Conference room bg
+    ctx.fillStyle = '#2A2A3A';
+    ctx.fillRect(0, 0, 800, 500);
+    ctx.fillStyle = '#3A3A4A';
+    ctx.fillRect(0, 200, 800, 200);
+    // Table
+    ctx.fillStyle = '#5C3A1A';
+    ctx.fillRect(150, 290, 500, 30);
+    ctx.fillStyle = '#4A2A0A';
+    ctx.fillRect(150, 318, 500, 8);
+    // Table legs
+    [200, 550].forEach(lx => { ctx.fillStyle = '#4A2A0A'; ctx.fillRect(lx, 318, 16, 60); });
+    const s = animState;
+    s.chairScroll = (t * 4) % 800;
+    // Chair scrolling off screen
+    const chairX = (400 + s.chairScroll) % 900 - 100;
+    ctx.fillStyle = '#444';
+    ctx.fillRect(chairX - 20, 330, 40, 50);
+    ctx.fillRect(chairX - 25, 370, 50, 8);
+    // Buck bouncing head on table
+    const bounceY = 250 + Math.abs(Math.sin(t * 0.25)) * 60;
+    drawBuckAt(400, bounceY, false, t % 15 < 8 ? 'dizzy' : 'shocked');
+    // THUNK text
+    if (Math.abs(Math.sin(t * 0.25)) < 0.1 && t > 10) {
+      ctx.fillStyle = '#FF8800';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('THUNK!', 500, 240);
+    }
+    // Phone still in hand
+    ctx.fillStyle = '#111';
+    ctx.fillRect(430, bounceY + 10, 20, 35);
+    ctx.fillStyle = '#4AF';
+    ctx.fillRect(432, bounceY + 13, 16, 26);
+  }
+
+  // --- ANIMATION 3: Tornado ---
+  function animTornado(t) {
+    drawSky(currentScenario ? currentScenario.setting : "default"); drawClouds(); drawGround();
+    const s = animState;
+    s.angle += 0.08;
+    // House (damaged)
+    const hx = 350 + Math.sin(t * 0.3) * (Math.min(t, 40) * 0.3);
+    ctx.fillStyle = '#8B5E3C';
+    ctx.fillRect(hx, 260, 140, 120);
+    ctx.fillStyle = '#AA4422';
+    // Roof (flying away if t>40)
+    const roofY = t > 40 ? s.roofY - (t - 40) * 2 : 220;
+    const roofAngle = t > 40 ? (t - 40) * 0.05 : 0;
+    ctx.save();
+    ctx.translate(hx + 70, roofY + 20);
+    ctx.rotate(roofAngle);
+    ctx.fillStyle = '#AA4422';
+    ctx.beginPath(); ctx.moveTo(-80, 20); ctx.lineTo(80, 20); ctx.lineTo(0, -40); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // Windows
+    ctx.fillStyle = 'rgba(255,255,150,0.6)';
+    ctx.fillRect(hx+20, 280, 30, 30); ctx.fillRect(hx+90, 280, 30, 30);
+    // Door
+    ctx.fillStyle = '#5C3A1A'; ctx.fillRect(hx+55, 340, 30, 40);
+    // Tornado
+    const tx2 = 420;
+    for (let i = 0; i < 8; i++) {
+      const ang = s.angle + i * Math.PI / 4;
+      const rad = 15 + i * 8;
+      const ty = 180 + i * 25;
+      ctx.strokeStyle = `rgba(150,150,200,${0.8 - i*0.08})`;
+      ctx.lineWidth = 3 - i*0.2;
+      ctx.beginPath();
+      ctx.ellipse(tx2, ty, rad, 8, 0, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    // Debris orbiting
+    s.debris.forEach((d, i) => {
+      d.angle += 0.06;
+      const dx = tx2 + Math.cos(d.angle) * d.r;
+      const dy = 200 + Math.sin(d.angle) * 20 - i * 5;
+      ctx.fillStyle = ['#8B5E3C','#AA4422','#5C3A1A','#888'][i%4];
+      ctx.fillRect(dx-5, dy-5, 10+i%4*3, 8+i%3*2);
+    });
+    // Neighbors watching then going in
+    if (t > 60) {
+      s.neighborAlpha = Math.min(1, (t-60)/20);
+      ctx.globalAlpha = s.neighborAlpha;
+      // Neighbor 1
+      drawSimplePerson(180, 360, '#E8C090', '#AA3333');
+      drawSimplePerson(220, 360, '#C08060', '#333388');
+      ctx.fillStyle = '#FFD700';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('...yikes.', 200, 345);
+      ctx.globalAlpha = 1;
+    }
+    if (t > 100) {
+      s.doorClose = Math.min(1, (t-100)/20);
+      // Door closing animation for neighbors
+      ctx.fillStyle = '#5C3A1A';
+      ctx.fillRect(175, 330, 25 * s.doorClose, 40);
+    }
+    drawBuckAt(500, 360, false, 'shocked');
+  }
+
+  // --- ANIMATION 4: Bonus Ripped ---
+  function animBonusRipped(t) {
+    // Office hallway
+    ctx.fillStyle = '#D4C4A0';
+    ctx.fillRect(0, 0, 800, 500);
+    ctx.fillStyle = '#B8A882';
+    ctx.fillRect(0, 380, 800, 120);
+    ctx.fillStyle = '#8A7850';
+    ctx.fillRect(0, 375, 800, 10);
+    const s = animState;
+    // Secretary walking
+    if (t < 40) s.secretaryX = 560 - t * 2;
+    const secFace = t > 50 ? 'angry' : 'neutral';
+    drawSimplePerson(s.secretaryX, 350, '#F0D0B0', '#CC2222', secFace);
+    // Check floating
+    const checkX = 400;
+    const checkY = t < 30 ? 220 + t * 2 : 280;
+    ctx.fillStyle = '#FFFFF0';
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    ctx.fillRect(checkX-50, checkY-30, 100, 60);
+    ctx.strokeRect(checkX-50, checkY-30, 100, 60);
+    ctx.fillStyle = '#228B22';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('$$$', checkX, checkY);
+    ctx.fillStyle = '#555';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('BONUS CHECK', checkX, checkY+16);
+    // Rip animation
+    if (t > 50) {
+      const rip = Math.min(1, (t-50)/30);
+      // Left half
+      ctx.fillStyle = '#FFFFF0';
+      ctx.save();
+      ctx.translate(checkX - rip * 40, checkY);
+      ctx.rotate(-rip * 0.3);
+      ctx.fillRect(-50, -30, 50, 60);
+      ctx.restore();
+      // Right half
+      ctx.save();
+      ctx.translate(checkX + rip * 40, checkY);
+      ctx.rotate(rip * 0.3);
+      ctx.fillStyle = '#FFFFF0';
+      ctx.fillRect(0, -30, 50, 60);
+      ctx.restore();
+      // Rip line
+      ctx.strokeStyle = '#FF0000';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4,3]);
+      ctx.beginPath();
+      ctx.moveTo(checkX, checkY-30); ctx.lineTo(checkX, checkY+30);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (t > 60) {
+      ctx.fillStyle = '#FF2222';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('RIP!', checkX + 80, checkY - 20);
+    }
+    drawBuckAt(300, 350, false, t > 50 ? 'shocked' : 'normal');
+  }
+
+  // --- ANIMATION 5: Mirror / Pants ---
+  function animMirrorPants(t) {
+    ctx.fillStyle = '#E8D8C8';
+    ctx.fillRect(0, 0, 800, 500);
+    ctx.fillStyle = '#C8B89A';
+    ctx.fillRect(0, 390, 800, 110);
+    const s = animState;
+    s.mirrorReveal = Math.min(1, t / 50);
+    s.pantsHole = t > 60 ? Math.min(1, (t-60)/30) : 0;
+    // Mirror
+    ctx.fillStyle = '#888';
+    ctx.fillRect(500, 180, 90, 160);
+    ctx.fillStyle = '#AADDFF';
+    ctx.fillRect(505, 185, 80, 150);
+    // Mirror reflection showing truth (tight dress looks bad)
+    ctx.globalAlpha = s.mirrorReveal;
+    ctx.fillStyle = '#FF6666';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('THE TRUTH', 545, 265);
+    ctx.fillText('...', 545, 285);
+    ctx.globalAlpha = 1;
+    // Friend
+    drawSimplePerson(560, 370, '#F4A0A0', '#CC44AA', t > 60 ? 'shocked' : 'happy');
+    // Buck with pants hole
+    drawBuckAt(300, 340, false, t > 60 ? 'embarrassed' : 'normal');
+    if (s.pantsHole > 0) {
+      // Big hole where pocket should be
+      ctx.globalAlpha = s.pantsHole;
+      ctx.fillStyle = '#1A0A00';
+      ctx.beginPath();
+      ctx.ellipse(323, 375, 18 * s.pantsHole, 14 * s.pantsHole, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#FF8800';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#FF8800';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('!!!', 300, 320);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // --- ANIMATION 6: Hole in Floor ---
+  function animHoleInFloor(t) {
+    // Party house interior
+    ctx.fillStyle = '#2A1A3A';
+    ctx.fillRect(0, 0, 800, 500);
+    ctx.fillStyle = '#3A2A4A';
+    ctx.fillRect(0, 380, 800, 120);
+    // Decorations
+    ctx.fillStyle = '#FF6B9D';
+    for (let i = 0; i < 6; i++) {
+      ctx.fillRect(100 + i*100, 80, 4, 80);
+      ctx.beginPath(); ctx.arc(102 + i*100, 80, 8, 0, Math.PI*2); ctx.fill();
+    }
+    const s = animState;
+    // Door frame
+    ctx.fillStyle = '#5C3A1A';
+    ctx.fillRect(350, 260, 100, 120);
+    ctx.fillStyle = '#4A2A0A';
+    ctx.fillRect(345, 255, 110, 15);
+    // Hole
+    s.holeGlow = Math.sin(t * 0.1) * 0.3 + 0.7;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(400, 390, 40, 15, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 100, 0, ${s.holeGlow})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Buck falling in
+    if (t > 30) {
+      s.buckFallSpeed += 0.8;
+      s.buckY = Math.min(395, 340 + s.buckFallSpeed * (t - 30) * 0.3);
+    }
+    const buckScale = t > 30 ? Math.max(0.1, 1 - (s.buckY - 340) / 80) : 1;
+    ctx.save();
+    ctx.translate(400, s.buckY);
+    ctx.scale(buckScale, buckScale);
+    ctx.translate(-400, -s.buckY);
+    drawBuckAt(400, s.buckY, false, 'shocked');
+    ctx.restore();
+    if (t > 30 && t < 60) {
+      ctx.fillStyle = '#FF4400';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('AAAAHHH!', 500, 280);
+    }
+    // Host watching
+    if (t > 10) {
+      drawSimplePerson(200, 360, '#F0D0A0', '#3344AA', 'shocked');
+      ctx.fillStyle = '#FFDD00';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('I tried to warn him!', 200, 335);
+    }
+  }
+
+  // --- ANIMATION 7: Hot Mic ---
+  function animHotMic(t) {
+    ctx.fillStyle = '#1A1A2A';
+    ctx.fillRect(0, 0, 800, 500);
+    ctx.fillStyle = '#2A2A3A';
+    ctx.fillRect(0, 360, 800, 140);
+    const s = animState;
+    // Mic with glow
+    s.micPulse = Math.sin(t * 0.15) * 0.4 + 0.6;
+    ctx.fillStyle = `rgba(255, 50, 50, ${s.micPulse})`;
+    ctx.beginPath(); ctx.arc(400, 200, 30, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#CC0000';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ON AIR', 400, 207);
+    // Mic stand
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(400, 230); ctx.lineTo(400, 310); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(370, 310); ctx.lineTo(430, 310); ctx.stroke();
+    // Shockwaves of gossip
+    s.shockwaves.forEach((sw, i) => {
+      sw.r += 3; sw.life--;
+      ctx.strokeStyle = `rgba(255, 50, 50, ${Math.max(0, sw.life/60)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(400, 200, sw.r, 0, Math.PI*2); ctx.stroke();
+    });
+    // Crowd of shocked faces
+    const faces = [150, 250, 350, 450, 550, 650];
+    faces.forEach((fx, i) => {
+      drawSimplePerson(fx, 350, '#F0C890', ['#AA3333','#3344AA','#228B22','#AA3333','#884488','#336688'][i], t > 20 ? 'shocked' : 'neutral');
+    });
+    // Buck SHRINKING
+    s.buckScale = Math.max(0.3, 1 - Math.min(1, (t - 20) / 60) * 0.7);
+    s.buckUgly = Math.min(1, (t - 20) / 60);
+    ctx.save();
+    ctx.translate(400, 340);
+    ctx.scale(s.buckScale, s.buckScale);
+    ctx.translate(-400, -340);
+    // Ugly buck (green tint)
+    if (s.buckUgly > 0) {
+      ctx.globalAlpha = s.buckUgly;
+      ctx.fillStyle = `rgba(0, 180, 0, 0.3)`;
+      ctx.beginPath(); ctx.arc(400, 310, 30 * s.buckScale, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    drawBuckAt(400, 340, false, s.buckUgly > 0.5 ? 'embarrassed' : 'shocked');
+    ctx.restore();
+    if (t > 30) {
+      ctx.fillStyle = '#FF4444';
+      ctx.font = `bold ${Math.max(12, 24 - t * 0.1)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('EVERYONE CAN HEAR YOU, BUCK!', 400, 130);
+    }
+  }
+
+  // --- ANIMATION 8: Cartoon Fight ---
+  function animCartoonFight(t) {
+    ctx.fillStyle = '#F5E6C8';
+    ctx.fillRect(0, 0, 800, 500);
+    ctx.fillStyle = '#D4B896';
+    ctx.fillRect(0, 380, 800, 120);
+    const s = animState;
+    if (t < 30) {
+      // Charging at each other
+      s.buckX = 250 + t * 3;
+      s.foeX = 550 - t * 3;
+    } else if (t < 80) {
+      // DUST CLOUD
+      s.cloudR = Math.min(80, (t - 30) * 2);
+      ctx.fillStyle = 'rgba(180,160,120,0.7)';
+      for (let i = 0; i < 8; i++) {
+        const angle = i * Math.PI / 4 + t * 0.1;
+        ctx.beginPath();
+        ctx.arc(400 + Math.cos(angle)*s.cloudR*0.5, 320 + Math.sin(angle)*s.cloudR*0.3, s.cloudR*0.5, 0, Math.PI*2);
+        ctx.fill();
+      }
+      // Symbols flying out
+      s.symbols.forEach(sym => {
+        sym.life--;
+        if (sym.life > 0) {
+          sym.x += (Math.random()-0.5)*3;
+          sym.y -= 1;
+          ctx.save();
+          ctx.translate(sym.x, sym.y);
+          ctx.rotate(sym.angle);
+          ctx.fillStyle = '#FF2222';
+          ctx.font = 'bold 22px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(sym.char, 0, 0);
+          ctx.restore();
+        }
+      });
+      // Stars
+      for (let i = 0; i < 5; i++) {
+        const ang = t * 0.2 + i * Math.PI*2/5;
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '18px sans-serif';
+        ctx.fillText('★', 400 + Math.cos(ang)*60, 260 + Math.sin(ang)*20);
+      }
+    } else {
+      // Aftermath - bandaged Buck
+      s.bandaged = true;
+      drawBuckAt(350, 340, false, 'dizzy');
+      // Bandages
+      ctx.fillStyle = '#FFFFF0';
+      ctx.fillRect(335, 280, 30, 6); // head bandage
+      ctx.fillRect(328, 295, 8, 20); // arm bandage
+      // Black eye
+      ctx.fillStyle = '#444400';
+      ctx.beginPath(); ctx.ellipse(356, 288, 8, 6, 0, 0, Math.PI*2); ctx.fill();
+      // Torn shirt lines
+      ctx.strokeStyle = '#AAAAFF';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(340, 320); ctx.lineTo(348, 340); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(360, 310); ctx.lineTo(355, 335); ctx.stroke();
+      return;
+    }
+    if (t < 30) {
+      drawBuckAt(s.buckX, 340, true, 'normal');
+      drawSimplePerson(s.foeX, 340, '#D08060', '#882222', 'angry');
+    }
+  }
+
+  // --- ANIMATION 9: Hood Ornament ---
+  function animHoodOrnament(t) {
+    drawSky(currentScenario ? currentScenario.setting : "default"); drawClouds(); drawGround();
+    const s = animState;
+    // Dog limping on road
+    const dogX = s.dogX - t * 0.3;
+    ctx.fillStyle = '#C8A060';
+    ctx.fillRect(dogX, 368, 30, 16);
+    ctx.beginPath(); ctx.arc(dogX + 26, 366, 10, 0, Math.PI*2); ctx.fill();
+    // Injured paw
+    ctx.fillStyle = '#FF8888';
+    ctx.fillRect(dogX+4, 382, 8, 4);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(':(', dogX + 15, 360);
+    // Buck walking away
+    if (!s.attached) {
+      drawBuckAt(s.buckX + Math.min(t * 1.5, 100), 340, true, 'normal');
+    }
+    // TRUCK
+    s.truckX += s.speed;
+    s.speed = Math.min(14, s.speed + 0.2);
+    const tx = s.truckX;
+    // Truck body
+    ctx.fillStyle = '#CC2222';
+    ctx.fillRect(tx, 300, 180, 80);
+    ctx.fillStyle = '#AA1111';
+    ctx.fillRect(tx + 120, 285, 60, 95);
+    // Windows
+    ctx.fillStyle = 'rgba(150,220,255,0.7)';
+    ctx.fillRect(tx + 125, 292, 50, 35);
+    // Wheels
+    ctx.fillStyle = '#222';
+    [tx+20, tx+140].forEach(wx => {
+      ctx.beginPath(); ctx.arc(wx, 382, 18, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#666'; ctx.lineWidth = 3;
+      ctx.stroke();
+    });
+    ctx.fillStyle = '#555';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('KARMA EXPRESS', tx + 90, 340);
+    // Buck gets hit
+    if (s.truckX > 300 && !s.attached) {
+      s.attached = true;
+    }
+    if (s.attached) {
+      // Buck as hood ornament
+      ctx.save();
+      ctx.translate(tx + 185, 290);
+      ctx.rotate(-0.15);
+      drawBuckAt(-15, -20, false, 'shocked');
+      ctx.restore();
+      if (t > 50) {
+        ctx.fillStyle = '#FF4400';
+        ctx.font = 'bold 36px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('WHAM!', tx + 90, 270);
+      }
+    }
+  }
+
+  // --- SHARED HELPERS ---
+  function drawBuckAt(x, y, walking, expression) {
+    drawBuckSprite(x, y, consequenceTimer, walking, 1, expression, 1);
+  }
+
+  function drawSimplePerson(x, y, skinColor, shirtColor, expression) {
+    // Simplified person NPC
+    ctx.fillStyle = skinColor;
+    ctx.beginPath(); ctx.arc(x, y-50, 14, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(x-14, y-36, 28, 30);
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(x-20, y-34, 8, 18);
+    ctx.fillRect(x+12, y-34, 8, 18);
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(x-10, y-8, 10, 22);
+    ctx.fillRect(x, y-8, 10, 22);
+    // Face
+    if (expression === 'shocked') {
+      ctx.fillStyle = '#222';
+      ctx.beginPath(); ctx.arc(x-5, y-52, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x+5, y-52, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y-44, 4, 0, Math.PI*2); ctx.fill();
+    } else if (expression === 'angry') {
+      ctx.fillStyle = '#222';
+      ctx.fillRect(x-8, y-55, 6, 3);
+      ctx.fillRect(x+2, y-55, 6, 3);
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y-44, 4, Math.PI, 0); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#222';
+      ctx.fillRect(x-6, y-53, 4, 4);
+      ctx.fillRect(x+2, y-53, 4, 4);
+    }
+  }
+
+  // ---- SECOND CHANCE SCREEN ----
+  function drawSecondChance() {
+    consequenceTimer++;
+    drawWorld();
+    // Dark overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, 0, 800, 500);
+    // Panel with golden warning border
+    ctx.fillStyle = '#1A1000';
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 3;
+    roundRect(ctx, 150, 100, 500, 300, 16);
+    ctx.fill();
+    ctx.stroke();
+    // Warning icon
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠', 400, 155);
+    // Title
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText('ONE MORE CHANCE, BUCK.', 400, 198);
+    // Subtext
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '14px sans-serif';
+    ctx.fillText("That didn't go well. But Buck gets one shot to make it right.", 400, 228);
+    ctx.fillStyle = '#FF8888';
+    ctx.font = 'italic 13px sans-serif';
+    ctx.fillText('Choose wrong again... and you start over from the beginning.', 400, 252);
+    // Divider
+    ctx.strokeStyle = 'rgba(255,215,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(200, 268); ctx.lineTo(600, 268); ctx.stroke();
+    // Good button
+    ctx.fillStyle = '#1A4A2E';
+    ctx.strokeStyle = '#7FFF00';
+    ctx.lineWidth = 2;
+    roundRect(ctx, 200, 285, 180, 50, 10);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#7FFF00';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    wrapText(ctx, currentScenario.good.label, 290, 315, 160, 18);
+    // Bad button (now labeled as restart warning)
+    ctx.fillStyle = '#4A1A1A';
+    ctx.strokeStyle = '#FF6B6B';
+    ctx.lineWidth = 2;
+    roundRect(ctx, 420, 285, 180, 50, 10);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FF6B6B';
+    ctx.font = 'bold 14px sans-serif';
+    wrapText(ctx, currentScenario.bad.label, 510, 307, 160, 16);
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = 'rgba(255,100,100,0.7)';
+    ctx.fillText('(restart if wrong!)', 510, 328);
+    // Pulse prompt
+    if (consequenceTimer > 60) {
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = '#FFD700';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('Make your choice...', 400, 375);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---- CONSEQUENCE: GOOD ----
+  function drawConsequenceGood(dt) {
+    consequenceTimer++;
+
+    if (consequenceTimer === 1) spawnGoodParticles();
+
+    drawWorld();
+
+    // Update and draw particles
+    goodChoiceParticles = goodChoiceParticles.filter(p => p.life > 0);
+    goodChoiceParticles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.15;
+      p.life--;
+      ctx.globalAlpha = p.life / 60;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Good choice text box
+    if (consequenceTimer > 10) {
+      const a = Math.min(1, (consequenceTimer - 10) / 30);
+      ctx.globalAlpha = a;
+
+      ctx.fillStyle = 'rgba(0,20,0,0.88)';
+      ctx.strokeStyle = '#7FFF00';
+      ctx.lineWidth = 2;
+      roundRect(ctx, 150, 130, 500, 180, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#7FFF00';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('GOOD CALL, BUCK! ★', 400, 165);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '14px sans-serif';
+      const lines = currentScenario.goodText.split('\n');
+      lines.forEach((line, i) => {
+        ctx.fillText(line, 400, 200 + i * 22);
+      });
+
+      if (consequenceTimer > 60) {
+        const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.006);
+        ctx.globalAlpha = a * pulse;
+        ctx.fillStyle = '#FFD700';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('Click to keep going...', 400, 295);
+      }
+
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---- WIN SCREEN ----
+  function drawWin() {
+    ctx.fillStyle = '#0A1A0A';
+    ctx.fillRect(0, 0, 800, 500);
+
+    // Confetti
+    for (let i = 0; i < 60; i++) {
+      const cx = (i * 137 + Date.now() * 0.05 * (i % 3 + 1)) % 800;
+      const cy = (i * 79 + Date.now() * 0.03 * (i % 4 + 1)) % 500;
+      ctx.fillStyle = ['#FFD700', '#FF69B4', '#7FFF00', '#87CEEB', '#FF6B6B'][i % 5];
+      ctx.fillRect(cx, cy, 6, 6);
+    }
+
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('BUCK DID IT!', 400, 150);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '20px sans-serif';
+    ctx.fillText(`Good choices: ${buck.karma} / ${scenarios.length}`, 400, 210);
+
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#7FFF00';
+    ctx.fillText('You\'re the kind of person the world needs.', 400, 260);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '14px sans-serif';
+    ctx.fillText('"Buck the System... or not?"', 400, 310);
+    ctx.fillText('Turns out, not bucking it feels pretty great.', 400, 335);
+
+    // Stars
+    for (let i = 0; i < buck.karma; i++) {
+      ctx.fillStyle = '#FFD700';
+      ctx.font = '28px sans-serif';
+      ctx.fillText('★', 260 + i * 36, 400);
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '13px sans-serif';
+    ctx.fillText('Refresh to play again', 400, 465);
+  }
+
+  // ---- WORLD DRAW (used in multiple states) ----
+  function drawWorld() {
+    drawSky(getCurrentSetting());
+    drawClouds();
+    drawBuildings();
+    drawGround();
+    drawScenarioMarkers();
+    drawBuck();
+    // Darkness overlay — grows with bad choices
+    if (worldDarkness > 0) {
+      ctx.fillStyle = `rgba(0, 0, 20, ${worldDarkness})`;
+      ctx.fillRect(0, 0, 800, 500);
+    }
+    drawKarmaBar(); // HUD always on top
+  }
+
+  // ---- UPDATE ----
+  function update(dt) {
+    if (gameState !== STATE.WALKING) return;
+
+    // Slowly recover darkness while walking (good behavior restores the world)
+    if (worldDarkness > 0) worldDarkness = Math.max(0, worldDarkness - 0.0003);
+
+    // Move Buck
+    buck.walking = false;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+      buck.x += buck.speed;
+      buck.facing = 1;
+      buck.walking = true;
+      if (buck.x > 500) {
+        scrollX += buck.speed;
+        buck.x = 500;
+      }
+    }
+    if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+      if (buck.x > 80 || scrollX > 0) {
+        buck.x -= buck.speed;
+        buck.facing = -1;
+        buck.walking = true;
+        if (buck.x < 80 && scrollX > 0) {
+          scrollX -= buck.speed;
+          buck.x = 80;
+        }
+      }
+    }
+
+    // Walk animation + footstep sounds
+    if (buck.walking) {
+      buck.walkTimer++;
+      if (buck.walkTimer > 6) {
+        buck.walkFrame++;
+        buck.walkTimer = 0;
+        maybeFootstep(buck.walkFrame);
+      }
+    }
+
+    // Check scenario triggers
+    const worldBuckX = buck.x + scrollX;
+    scenarios.forEach(s => {
+      if (!s.triggered && !s.resolved && Math.abs(worldBuckX - s.worldX) < 35) {
+        s.triggered = true;
+        currentScenario = s;
+        gameState = STATE.CHOICE;
+        choiceAlpha = 0;
+        fadeWalkMusic(0.04, 0.4);
+        sfxChoiceAppear();
+      }
+    });
+
+    // Keep Buck on ground
+    buck.y = GROUND_Y - buck.height;
+  }
+
+  // ---- MAIN LOOP ----
+  let lastTime = 0;
+  function loop(timestamp) {
+    const dt = timestamp - lastTime;
+    lastTime = timestamp;
+
+    ctx.clearRect(0, 0, 800, 500);
+
+    if (gameState === STATE.INTRO) {
+      drawIntro(dt);
+    } else if (gameState === STATE.WALKING) {
+      update(dt);
+      drawWorld();
+    } else if (gameState === STATE.CHOICE) {
+      drawWorld();
+      drawChoice();
+    } else if (gameState === STATE.CONSEQUENCE_BAD) {
+      drawConsequenceBad(dt);
+    } else if (gameState === STATE.SECOND_CHANCE) {
+      drawSecondChance();
+    } else if (gameState === STATE.CONSEQUENCE_GOOD) {
+      drawConsequenceGood(dt);
+    } else if (gameState === STATE.WIN) {
+      drawWin();
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  // ---- HELPERS ----
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxWidth && n > 0) {
+        ctx.fillText(line, x, currentY);
+        line = words[n] + ' ';
+        currentY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, x, currentY);
+  }
+
+  // ---- START ----
+  requestAnimationFrame(loop);
+
+  </script>
+</body>
+</html>
